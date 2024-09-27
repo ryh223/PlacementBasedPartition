@@ -1029,3 +1029,12 @@ proc read_partitioning { args } {
   }
   return [par::read_file $keys(-read_file) $instance_file]
 }
+
+sta::define_cmd_args "partition_msg_test" {}
+
+proc partition_msg_test { args } {
+  sta::parse_key_args "partition_msg_test" args \
+    keys {} \
+    flags {}
+  par::partition_msg_test
+}

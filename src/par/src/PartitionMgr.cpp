@@ -910,4 +910,8 @@ void PartitionMgr::readPartitioningFile(const std::string& filename,
   }
 }
 
+void PartitionMgr::partitionMsgTest(){
+  std::cout << "PartitionMgr::partitionMsgTest" << std::endl;
+}
+
 }  // namespace par

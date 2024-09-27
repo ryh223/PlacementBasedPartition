@@ -256,6 +256,7 @@ class PartitionMgr
   void writePartitionVerilog(const char* file_name,
                              const char* port_prefix = "partition_",
                              const char* module_suffix = "_partition");
+  void partitionMsgTest();
 
  private:
   odb::dbBlock* getDbBlock() const;

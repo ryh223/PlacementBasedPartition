@@ -352,4 +352,7 @@ void read_file(const char* filename, const char* instance_map_file)
   getPartitionMgr()->readPartitioningFile(filename, instance_map_file);
 }
 
+void partition_msg_test(){
+  getPartitionMgr()->partitionMsgTest();
+}
 %}
