@@ -355,4 +355,8 @@ void read_file(const char* filename, const char* instance_map_file)
 void partition_msg_test(){
   getPartitionMgr()->partitionMsgTest();
 }
+
+void read_constraint_file(const char* physical_constraint_filename, const char* partition_constraint_filename){
+  getPartitionMgr()->readConstraintFile(physical_constraint_filename, partition_constraint_filename);
+}
 %}

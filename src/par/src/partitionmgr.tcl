@@ -1038,3 +1038,20 @@ proc partition_msg_test { args } {
     flags {}
   par::partition_msg_test
 }
+
+sta::define_cmd_args "read_constaint_file" { -physical_constraint physical_constraint_filename [-partition_constraint partition_constraint_filename]}
+
+proc read_constaint_file { args } {
+  sta::parse_key_args "read_constaint_file" args \
+    keys { -physical_constraint \
+      -partition_constraint
+    } flags { }
+  if { ![info exists keys(-physical_constraint)] } {
+    puts "error: no argument for physical_constraint"
+  }
+  set partition_constraint_file ""
+  if { [info exists keys(-partition_constraint)] } {
+    set instance_file $keys(-partition_constraint)
+  }
+  par::read_constaint_file $keys(-physical_constraint) $partition_constraint_file
+}

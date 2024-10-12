@@ -51,6 +51,7 @@
 #include "sta/PortDirection.hh"
 #include "sta/VerilogWriter.hh"
 #include "utl/Logger.h"
+// #include "par/ChipletPartitioner.h"
 
 using odb::dbBlock;
 using odb::dbInst;
@@ -914,4 +915,10 @@ void PartitionMgr::partitionMsgTest(){
   std::cout << "PartitionMgr::partitionMsgTest" << std::endl;
 }
 
-}  // namespace par
+void PartitionMgr::readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename){
+  std::cout << "PartitionMgr::readConstraintFile" << std::endl;
+  std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
+  std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
+}
+
+}// namespace par

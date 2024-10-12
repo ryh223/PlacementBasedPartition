@@ -258,6 +258,8 @@ class PartitionMgr
                              const char* module_suffix = "_partition");
   void partitionMsgTest();
 
+  void readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename);
+
  private:
   odb::dbBlock* getDbBlock() const;
   sta::Instance* buildPartitionedInstance(
