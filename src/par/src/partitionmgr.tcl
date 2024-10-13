@@ -1053,5 +1053,5 @@ proc read_constaint_file { args } {
   if { [info exists keys(-partition_constraint)] } {
     set instance_file $keys(-partition_constraint)
   }
-  par::read_constaint_file $keys(-physical_constraint) $partition_constraint_file
+  par::read_constraint_file $keys(-physical_constraint) $partition_constraint_file
 }

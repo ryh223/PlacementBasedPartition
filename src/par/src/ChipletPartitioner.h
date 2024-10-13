@@ -30,7 +30,7 @@ private:
     ~ChipletPartitioner() {}
 
 public:
-    void initPhisicalConstraints(core_box core_box, int chiplet_area, int num_chiplets, 
+    void initPhisicalConstraints(core_box core_box, long int chiplet_area, int num_chiplets, 
         std::vector<utilization> chiplet_utilization, std::vector<aspect_ratio> chiplet_aspect_ratio);
 
     //to do(kxy)
@@ -39,7 +39,7 @@ public:
     void run_partition();
 private:
     core_box _core_box;
-    int _chiplet_area;
+    long int _chiplet_area;
     int _num_chiplets;
     std::vector<utilization> _chiplet_utilization;
     std::vector<aspect_ratio> _chiplet_aspect_ratio;

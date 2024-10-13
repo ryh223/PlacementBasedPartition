@@ -51,7 +51,7 @@
 #include "sta/PortDirection.hh"
 #include "sta/VerilogWriter.hh"
 #include "utl/Logger.h"
-// #include "par/ChipletPartitioner.h"
+#include "ChipletPartitioner.h"
 
 using odb::dbBlock;
 using odb::dbInst;
@@ -916,6 +916,45 @@ void PartitionMgr::partitionMsgTest(){
 }
 
 void PartitionMgr::readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename){
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance();
+  //parse physical constraint file
+  std::ifstream file(physical_constraint_filename);
+  if (!file.is_open()) {
+        throw std::runtime_error("Unable to open file");
+  }
+  std::string line;
+  std::istringstream iss;
+  std::getline(file, line);
+  iss.str(line);
+  int x1, y1, x2, y2;
+  iss >> x1 >> y1 >> x2 >> y2;
+  // std::cout << "x1: " << x1 << " y1: " << y1 << " x2: " << x2 << " y2: " << y2 << std::endl;
+  core_box CoreBox(std::pair<int,int>(x1, y1), std::pair<int,int>(x2, y2));
+  iss.clear();
+
+  std::getline(file, line);
+  iss.str(line);
+  long int chiplet_area;
+  iss >> chiplet_area;
+  // std::cout << "chiplet_area: " << chiplet_area << std::endl;
+  iss.clear();
+
+  int chiplet_num = 0;
+  std::vector<std::pair<float,float>> chiplet_utilizations;
+  std::vector<std::pair<float,float>> chiplet_aspect_ratios;
+  while(std::getline(file, line)){
+    iss.str(line);
+    float utilization_min, utilization_max, aspect_ratio_min, aspect_ratio_max;
+    iss >> utilization_min >> utilization_max >> aspect_ratio_min >> aspect_ratio_max;
+    // std::cout << utilization_min << " " << utilization_max << " " << aspect_ratio_min << " " << aspect_ratio_max << std::endl;
+    chiplet_utilizations.push_back(std::pair<float,float>(utilization_min, utilization_max));
+    chiplet_aspect_ratios.push_back(std::pair<float,float>(aspect_ratio_min, aspect_ratio_max));
+    iss.clear();
+    chiplet_num++;
+  }
+  // std::cout << "chiplet_num: " << chiplet_num << std::endl;
+  chipletPartitioner.initPhisicalConstraints(CoreBox, chiplet_area, chiplet_num, chiplet_utilizations, chiplet_aspect_ratios);
+  
   std::cout << "PartitionMgr::readConstraintFile" << std::endl;
   std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
   std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
