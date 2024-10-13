@@ -1,0 +1,2 @@
+me/network  me/genblk1_0__bp_cce_top/bp_cce rof1_0__core/fe/bp_fe_pc_gen_1/genblk1_branch_prediction_1/btb_1/btb_mem
+me/network/data_resp_channel rof1_0__core/fe/icache_1
