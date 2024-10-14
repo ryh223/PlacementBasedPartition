@@ -1,6 +1,6 @@
 #pragma once
 
-// #include <pair>
+#include <string>
 #include <vector>
 
 namespace par {
@@ -34,7 +34,7 @@ public:
         std::vector<utilization> chiplet_utilization, std::vector<aspect_ratio> chiplet_aspect_ratio);
 
     //to do(kxy)
-    void initPartitionConstaints();
+    void initModuleConstraints(const std::string& partition_constraint_filename);
 
     void run_partition();
 private:
@@ -43,6 +43,7 @@ private:
     int _num_chiplets;
     std::vector<utilization> _chiplet_utilization;
     std::vector<aspect_ratio> _chiplet_aspect_ratio;
+    
     
     // std::vector<type>  <module, vitual_macro>
     //to do(kxy): properties for partitionCONSTRAINTS

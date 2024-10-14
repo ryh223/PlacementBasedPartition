@@ -1049,9 +1049,14 @@ proc read_constaint_file { args } {
   if { ![info exists keys(-physical_constraint)] } {
     puts "error: no argument for physical_constraint"
   }
-  set partition_constraint_file ""
-  if { [info exists keys(-partition_constraint)] } {
-    set instance_file $keys(-partition_constraint)
+  if { [info exists keys(-physical_constraint)] } {
+    set physical_constraint_filename $keys(-physical_constraint)
   }
-  par::read_constraint_file $keys(-physical_constraint) $partition_constraint_file
+  if { ![info exists keys(-partition_constraint)] } {
+    puts "error: no argument for partition_constraint"
+  }
+  if { [info exists keys(-partition_constraint)] } {
+    set partition_constraint_filename $keys(-partition_constraint)
+  }
+  par::read_constraint_file $physical_constraint_filename $partition_constraint_filename
 }
