@@ -65,6 +65,7 @@ add_library(par_lib
   src/KWayPMRefine.cpp
   src/PriorityQueue.cpp
   src/ChipletPartitioner.cpp
+  src/ChipletModuleWrapper.cpp
 )
 
 target_include_directories(par_lib
