@@ -68,4 +68,4 @@ set_wire_rc -clock  -layer metal5
 
 read_def -floorplan_initialize public_case1/input.def
 
-par::print_design_info
+par::printDesignInfo

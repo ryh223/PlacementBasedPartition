@@ -56,6 +56,9 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
         ofs << "Instance name: " << inst->getName() << "\n";
         ofs << "Master name: " << inst->getMaster()->getName() << "\n";
         ofs << "Instance location: " << inst->getLocation().getX() << " x " << inst->getLocation().getY() << "\n";
+        if (inst->isBlock()) {
+            ofs << "IsBlock\n";
+        }
     }
 
     // Iterate over nets
