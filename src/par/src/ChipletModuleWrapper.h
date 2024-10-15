@@ -33,14 +33,14 @@ class ChipletModuleWrapper
                        std::vector<std::string>& combination,
                        std::vector<std::string>& abort);
   ~ChipletModuleWrapper();
-  void printDesignInfo();
+  void printDesignInfo(std::string file_name);
   // Initialize the module groups with combination and abort
   void initModuleGroups(std::vector<std::string>& combination,
                         std::vector<std::string>& abort);
   // When the module is wrapped, the insts of the same module will be wrapped
   // into a block, and the wrapper_inst will be created. The insts will be
   // removed from the block.
-  void wrapModule(std::shared_ptr<ModuleConstraintGroup> module_group);
+  void wrapModule(std::shared_ptr<ModuleConstraintGroup> module_group, std::string module_name);
   // When the module is unwrapped, the insts will be added back to the block,
   // and the wrapper_inst will be removed.
   void unwrapModule(std::shared_ptr<ModuleConstraintGroup> module_group);

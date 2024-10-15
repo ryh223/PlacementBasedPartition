@@ -52,6 +52,7 @@
 #include "sta/VerilogWriter.hh"
 #include "utl/Logger.h"
 #include "ChipletPartitioner.h"
+#include "ChipletModuleWrapper.h"
 
 using odb::dbBlock;
 using odb::dbInst;
@@ -76,6 +77,7 @@ using sta::PortDirection;
 using sta::Term;
 using sta::writeVerilog;
 using utl::PAR;
+
 
 namespace par {
 
@@ -958,6 +960,20 @@ void PartitionMgr::readConstraintFile(const std::string& physical_constraint_fil
   std::cout << "PartitionMgr::readConstraintFile" << std::endl;
   std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
   std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
+}
+
+bool PartitionMgr::printDesignInfo()
+{
+  std::vector<std::string> combination;
+  std::vector<std::string> abort;
+  combination = {};
+  abort = {};
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  par::ChipletModuleWrapper* wrapper
+      = new par::ChipletModuleWrapper(db_, block, logger_, combination, abort);
+  wrapper->printDesignInfo("design_info.txt");
+  std::cout << "PartitionMgr::printDesignInfo" << std::endl;
+  return true;
 }
 
 }// namespace par

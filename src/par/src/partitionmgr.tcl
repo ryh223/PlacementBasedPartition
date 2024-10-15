@@ -1055,3 +1055,12 @@ proc read_constaint_file { args } {
   }
   par::read_constraint_file $keys(-physical_constraint) $partition_constraint_file
 }
+
+sta::define_cmd_args "print_design_info" {}
+
+proc print_design_info { args } {
+  sta::parse_key_args "print_design_info" args \
+    keys {} \
+    flags {}
+  par::print_design_info
+}

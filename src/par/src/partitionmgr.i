@@ -39,7 +39,9 @@
 #include <memory>
 #include <regex>
 #include <vector>
-
+#include "ord/OpenRoad.hh"
+#include "odb/db.h"
+#include "utl/Logger.h"
 #include "par/PartitionMgr.h"
 
 namespace ord {
@@ -359,4 +361,10 @@ void partition_msg_test(){
 void read_constraint_file(const char* physical_constraint_filename, const char* partition_constraint_filename){
   getPartitionMgr()->readConstraintFile(physical_constraint_filename, partition_constraint_filename);
 }
+
+bool printDesignInfo()
+{
+  return getPartitionMgr()->printDesignInfo();
+}
+
 %}
