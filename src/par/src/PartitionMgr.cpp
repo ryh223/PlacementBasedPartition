@@ -957,6 +957,8 @@ void PartitionMgr::readConstraintFile(const std::string& physical_constraint_fil
   // std::cout << "chiplet_num: " << chiplet_num << std::endl;
   chipletPartitioner.initPhisicalConstraints(CoreBox, chiplet_area, chiplet_num, chiplet_utilizations, chiplet_aspect_ratios);
   
+  chipletPartitioner.initModuleConstraints(partition_constraint_filename);
+  //module list and virtual macro
   std::cout << "PartitionMgr::readConstraintFile" << std::endl;
   std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
   std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
