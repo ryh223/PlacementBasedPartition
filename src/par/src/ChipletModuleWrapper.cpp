@@ -1,5 +1,6 @@
 #include "ChipletModuleWrapper.h"
 #include <fstream>
+#include <iostream>
 
 namespace par {
 
@@ -36,7 +37,6 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
     // Print design information
     ofs << "Design information:\n";
     ofs << "Block name: " << _block->getName() << "\n";
-
     // Calculate block area from bounding box
     int llx, lly, urx, ury;
     odb::dbBox* bbox = _block->getBBox();
@@ -49,10 +49,8 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
     int width = urx - llx;
     int height = ury - lly;
     ofs << "Block area: " << width << " x " << height << "\n";
-
     // Number of instances
     ofs << "Number of instances: " << _block->getInsts().size() << "\n";
-
     // Iterate over instances
     for (auto inst : _block->getInsts()) {
         ofs << "Instance name: " << inst->getName() << "\n";
@@ -74,13 +72,14 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
         // Print BTerms information
         ofs << "BTerms:\n";
         for (auto bterm : net->getBTerms()) {
-            ofs << "  Pin: " << bterm->getName() << "\n";
+            ofs << "  BTerm: " << bterm->getName() << " Block:  " << bterm->getBlock()->getName() << "\n";
         }
     }
 
     // Print mod inst information
     for (auto mod_inst : _block->getModInsts()) {
         ofs << "mod inst: " << mod_inst->getMaster()->getName() << "\n";
+        std::cout << "mod inst: " << mod_inst->getMaster()->getName() << "\n";
     }
 
     ofs.close();
