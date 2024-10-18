@@ -48,12 +48,18 @@ public:
     void processFile(const std::string& filename) {
         std::ifstream file(filename);
         std::string line;
+        bool isEmpty = true;
 
         if (file.is_open()) {
             while (std::getline(file, line)) {
+                isEmpty = false;
                 processLine(line);  // 处理每一行
             }
             file.close();
+
+            if (isEmpty) {
+                std::cout << "No module constraint" << std::endl;
+            }
         } else {
             std::cerr << "Unable to open " << filename << std::endl;
         }
@@ -99,17 +105,34 @@ private:
     }
 
     // 模拟将行分割成模块，实际应用中可以根据实际需求修改
-    std::vector<std::string> splitLine(const std::string& line) {
-        std::vector<std::string> modules;
-        size_t start = 0;
-        size_t end = line.find(" ");
-        while (end != std::string::npos) {
-            modules.push_back(line.substr(start, end - start));
-            start = end + 1;
-            end = line.find(" ", start);
+std::vector<std::string> splitLine(const std::string& line) {
+    std::vector<std::string> modules;
+    size_t start = 0;
+    size_t end = 0;
+
+    while (start < line.size()) {
+        // 跳过所有的空格，直到找到第一个非空格字符
+        while (start < line.size() && line[start] == ' ') {
+            ++start;
         }
-        modules.push_back(line.substr(start, end));
-        return modules;
+
+        // 找到单词的结尾（下一个空格或字符串末尾）
+        end = start;
+        while (end < line.size() && line[end] != ' ') {
+            ++end;
+        }
+
+        // 如果找到的模块不为空，加入到模块列表中
+        if (end > start) {
+            modules.push_back(line.substr(start, end - start));
+        }
+
+        // 将 start 移到 end 后面，继续处理后续的部分
+        start = end + 1;
     }
+
+    return modules;
+}
+
 };
 }
