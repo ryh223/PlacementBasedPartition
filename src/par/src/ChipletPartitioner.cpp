@@ -1,5 +1,8 @@
+#include "odb/db.h"
+#include "utl/Logger.h"
 #include "ChipletPartitioner.h"
 #include "moduleMananger.h"
+#include "ChipletModuleWrapper.h"
 
 namespace par {
     void ChipletPartitioner::initPhisicalConstraints(core_box core_box, long int chiplet_area, int num_chiplets, 
@@ -16,6 +19,9 @@ namespace par {
         std::vector<std::vector<std::string>> &combination = module_manager->getCombine();
         std::vector<std::vector<std::string>> &abort = module_manager->getAbort();
         module_manager->printResults();
+        ChipletModuleWrapper* chiplet_module_wrapper = new ChipletModuleWrapper(_db, _block, _logger, combination, abort);
+        // chiplet_module_wrapper->run();
+        delete module_manager;
     }
     
 }

@@ -1,3 +1,5 @@
 # Ignore design info file becasue it is too big
 # zzy uses it to print the design info
 design_info.txt
+module_info.txt
+*.odb

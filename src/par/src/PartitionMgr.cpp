@@ -918,7 +918,8 @@ void PartitionMgr::partitionMsgTest(){
 }
 
 void PartitionMgr::readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename){
-  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance();
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
   //parse physical constraint file
   std::ifstream file(physical_constraint_filename);
   if (!file.is_open()) {
@@ -966,8 +967,8 @@ void PartitionMgr::readConstraintFile(const std::string& physical_constraint_fil
 
 bool PartitionMgr::printDesignInfo()
 {
-  std::vector<std::string> combination;
-  std::vector<std::string> abort;
+  std::vector<std::vector<std::string>> combination;
+  std::vector<std::vector<std::string>> abort;
   combination = {};
   abort = {};
   odb::dbBlock* block = db_->getChip()->getBlock();

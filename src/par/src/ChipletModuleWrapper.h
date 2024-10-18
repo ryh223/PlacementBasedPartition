@@ -22,6 +22,7 @@ struct ModuleConstraintGroup
 {
   std::vector<odb::dbInst*> insts;
   odb::dbInst* wrapper_inst;
+  std::string block_name;
 };
 
 class ChipletModuleWrapper
@@ -30,13 +31,14 @@ class ChipletModuleWrapper
   ChipletModuleWrapper(odb::dbDatabase* db,
                        odb::dbBlock* block,
                        utl::Logger* logger,
-                       std::vector<std::string>& combination,
-                       std::vector<std::string>& abort);
+                       std::vector<std::vector<std::string>>& combination,
+                       std::vector<std::vector<std::string>>& abort);
   ~ChipletModuleWrapper();
   void printDesignInfo(std::string file_name);
+  void printModuleInfo(std::string file_name);
   // Initialize the module groups with combination and abort
-  void initModuleGroups(std::vector<std::string>& combination,
-                        std::vector<std::string>& abort);
+  bool initModuleGroups(std::vector<std::vector<std::string>>& combination,
+                        std::vector<std::vector<std::string>>& abort);
   // When the module is wrapped, the insts of the same module will be wrapped
   // into a block, and the wrapper_inst will be created. The insts will be
   // removed from the block.
