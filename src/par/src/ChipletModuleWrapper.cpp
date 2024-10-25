@@ -224,7 +224,7 @@ void ChipletModuleWrapper::wrapModule(
     std::shared_ptr<ModuleConstraintGroup> module_group)
 {
   _logger->report("Wrapping module group: {}", module_group->getName());
-  module_group->createBlock(_block);
+  module_group->createBlock(_block, _logger);
 }
 
 void ChipletModuleWrapper::unwrapModule(

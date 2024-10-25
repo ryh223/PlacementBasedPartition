@@ -12,6 +12,7 @@
 
 #include "odb/db.h"  // Include the necessary OpenDB headers
 #include "utl/Logger.h"
+#include "db_sta/dbNetwork.hh"
 
 #define DEBUG
 
@@ -119,7 +120,7 @@ class ModuleConstraintGroup
    * @return `true` if the child block and wrapper instance are successfully
    * created, `false` otherwise.
    */
-  bool createBlock(odb::dbBlock* top_block)
+  bool createBlock(odb::dbBlock* top_block, utl::Logger* logger)
   {
     // travel the insts to get the area of the block
     DEBUG_PRINT("Calculating area of the block...");
@@ -240,7 +241,11 @@ class ModuleConstraintGroup
     DEBUG_PRINT("Wrapped Inst has ITerms: " << wrapped_inst_->getITerms().size());
     // create the wrapper cell
     // Library library;
-    // sta::dbNetwork::makeCell(library, wrapped_inst_->getMaster());
+    odb::dbLib* library = top_block->getDataBase()->findLib(block_name_.c_str());
+    std::shared_ptr<sta::dbNetwork> sta_db_network = std::make_shared<sta::dbNetwork>();
+    sta_db_network->init(top_block->getDataBase(), logger);
+    sta_db_network->setBlock(top_block);
+    sta_db_network->makeLibrary(library);
     // connect cross nets to the wrapper inst
     DEBUG_PRINT("Connecting cross nets to the wrapper instance...");
     for (auto it = outside_net_bterm_map.begin(); it != outside_net_bterm_map.end(); ++it) {
@@ -257,7 +262,7 @@ class ModuleConstraintGroup
     for (auto& [old_inst, new_inst] : old_new_insts_map) {
       insts_.insert(new_inst);
     }
-    odb::dbBox::create(wrapped_inst_, -10, -10, 10 + width_, 10 + height_);
+    odb::dbBox::create(wrapped_inst_, 0, 0, width_, height_);
     DEBUG_PRINT("Wrapper instance bounding box created successfully\n");
     return true;
   }
