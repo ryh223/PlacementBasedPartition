@@ -1039,10 +1039,10 @@ proc partition_msg_test { args } {
   par::partition_msg_test
 }
 
-sta::define_cmd_args "read_constaint_file" { -physical_constraint physical_constraint_filename [-partition_constraint partition_constraint_filename]}
+sta::define_cmd_args "read_constraint_file" { -physical_constraint physical_constraint_filename [-partition_constraint partition_constraint_filename]}
 
-proc read_constaint_file { args } {
-  sta::parse_key_args "read_constaint_file" args \
+proc read_constraint_file { args } {
+  sta::parse_key_args "read_constraint_file" args \
     keys { -physical_constraint \
       -partition_constraint
     } flags { }
@@ -1068,4 +1068,13 @@ proc print_design_info { args } {
     keys {} \
     flags {}
   par::print_design_info
+}
+
+sta::define_cmd_args "check_region_info" {}
+
+proc check_region_info { args } {
+  sta::parse_key_args "check_region_info" args \
+    keys {} \
+    flags {}
+  par::check_region_info
 }

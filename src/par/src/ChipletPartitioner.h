@@ -33,8 +33,7 @@ private:
     ~ChipletPartitioner() {}
 
 public:
-    void initPhisicalConstraints(core_box core_box, long int chiplet_area, int num_chiplets,
-                                 std::vector<utilization> chiplet_utilization, std::vector<aspect_ratio> chiplet_aspect_ratio);
+    void initPhisicalConstraints(const std::string& physical_constraint_filename);
 
     // to do(kxy)
     void initModuleConstraints(const std::string& partition_constraint_filename);
@@ -53,7 +52,6 @@ private:
     utl::Logger* _logger;
 
     // std::vector<type>  <module, vitual_macro>
-    // to do(kxy): properties for partitionCONSTRAINTS
 };
 
 }  // namespace par

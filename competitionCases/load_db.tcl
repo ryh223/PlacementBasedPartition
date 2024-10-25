@@ -1,4 +1,5 @@
 # Setting lef files
+# check if pwd have case1.odb
 set tech_lef "pdk/lef/NangateOpenCellLibrary.tech.lef"
 set std_lef "pdk/lef/NangateOpenCellLibrary.macro.mod.lef"
 set lefs "
@@ -18,7 +19,6 @@ set lefs "
     pdk/lef/NangateOpenCellLibrary.macro.lef \
     pdk/lef/NangateOpenCellLibrary.macro.rect.lef \
 "
-
 # Setting lib files
 set libs "
     pdk/lib/fakeram45_32x64.lib \
@@ -46,13 +46,19 @@ foreach lef_file ${lefs} {
 foreach lib_file ${libs} {
   read_liberty $lib_file
 }
-
-read_verilog public_case1/input.v
-
-link_design top
-
-read_sdc public_case1/input.sdc
-
+if { [file exists "case1.odb"] == 0 } {
+  puts "case1.odb not found"
+  read_verilog public_case1/input.v
+  link_design top
+  read_sdc public_case1/input.sdc
+  read_def -floorplan_initialize public_case1/input.def
+  # Save the design
+  write_db case1.odb
+} else {
+  puts "case1.odb found"
+  read_db case1.odb
+  read_sdc public_case1/input.sdc
+}
 # Liberty units are fF,kOhm
 set_layer_rc -layer metal1 -resistance 5.4286e-03 -capacitance 7.41819E-02
 set_layer_rc -layer metal2 -resistance 3.5714e-03 -capacitance 6.74606E-02
@@ -65,7 +71,4 @@ set_layer_rc -layer metal8 -resistance 1.8750e-04 -capacitance 9.69714E-02
 
 set_wire_rc -signal -layer metal3
 set_wire_rc -clock  -layer metal5
-
-read_def -floorplan_initialize public_case1/input.def
-
-par::printDesignInfo
+par::print_design_info

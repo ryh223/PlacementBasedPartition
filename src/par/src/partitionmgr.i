@@ -362,9 +362,13 @@ void read_constraint_file(const char* physical_constraint_filename, const char* 
   getPartitionMgr()->readConstraintFile(physical_constraint_filename, partition_constraint_filename);
 }
 
-bool printDesignInfo()
+bool print_design_info()
 {
   return getPartitionMgr()->printDesignInfo();
 }
 
+void check_region_info()
+{
+  getPartitionMgr()->checkRegionInfo();
+}
 %}

@@ -2,4 +2,6 @@
 # zzy uses it to print the design info
 design_info.txt
 module_info.txt
+wrapped_*
+local_test
 *.odb

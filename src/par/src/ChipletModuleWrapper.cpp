@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <unordered_set>
 
 namespace par {
@@ -18,11 +19,14 @@ ChipletModuleWrapper::ChipletModuleWrapper(
   _logger->report("Initializing module groups, {} combinations and {} aborts",
                   combination.size(),
                   abort.size());
-  initModuleGroups(combination, abort);
-  _logger->report("Module groups initialized, {} groups created",
-                  _module_groups.size());
-  std::string file_name = "module_info.txt";
-  printModuleInfo(file_name);
+  if (initModuleGroups(combination, abort)) {
+    _logger->report("Module groups initialized, {} groups created",
+                    _module_groups.size());
+    std::string file_name = "module_info.txt";
+    printModuleInfo(file_name);
+  } else {
+    _logger->report("Failed to initialize module groups");
+  }
 }
 
 ChipletModuleWrapper::~ChipletModuleWrapper()
@@ -42,10 +46,10 @@ void ChipletModuleWrapper::printModuleInfo(std::string file_name)
   ofs << "Module information:\n";
   // Iterate over modules
   for (const auto& dbmodule : _module_groups) {
-    ofs << "Module name: " << dbmodule->block_name << "\n";
-    ofs << "Number of instances: " << dbmodule->insts.size() << "\n";
+    ofs << "Module name: " << dbmodule->getName() << "\n";
+    ofs << "Number of instances: " << dbmodule->getInsts().size() << "\n";
     // Iterate over instances
-    for (const auto& inst : dbmodule->insts) {
+    for (const auto& inst : dbmodule->getInsts()) {
       ofs << "  Instance name: " << inst->getName() << "\n";
       ofs << "  Master name: " << inst->getMaster()->getName() << "\n";
       ofs << "  Instance location: " << inst->getLocation().getX() << " x "
@@ -84,18 +88,18 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
   ofs << "Block area: " << width << " x " << height << "\n";
   // Number of instances
   ofs << "Number of instances: " << _block->getInsts().size() << "\n";
-  //   // Iterate over instances
-  //   for (auto inst : _block->getInsts()) {
-  //     ofs << "Instance name: " << inst->getName() << "\n";
-  //     ofs << "Master name: " << inst->getMaster()->getName() << "\n";
-  //     ofs << "Instance location: " << inst->getLocation().getX() << " x "
-  //         << inst->getLocation().getY() << "\n";
-  //     if (inst->isBlock()) {
-  //       ofs << "IsBlock\n";
-  //     }
-  //   }
+  // Iterate over instances
+  for (auto inst : _block->getInsts()) {
+    ofs << "Instance name: " << inst->getName() << "\n";
+    ofs << "Master name: " << inst->getMaster()->getName() << "\n";
+    ofs << "Instance location: " << inst->getLocation().getX() << " x "
+        << inst->getLocation().getY() << "\n";
+    if (inst->isBlock()) {
+      ofs << "IsBlock\n";
+    }
+  }
 
-  // Iterate over nets
+  //   // Iterate over nets
   //   for (auto net : _block->getNets()) {
   //     ofs << "Net name: " << net->getName() << "\n";
   //     ofs << "Net connections: " << net->getITerms().size() << " drivers, "
@@ -165,8 +169,9 @@ bool ChipletModuleWrapper::initModuleGroups(
   }
 
   for (size_t i = 0; i < combination_size; i++) {
+    std::string wrapped_module_name = fmt::format("wrapped_{}", i);
     std::shared_ptr<ModuleConstraintGroup> module_group
-        = std::make_shared<ModuleConstraintGroup>();
+        = std::make_shared<ModuleConstraintGroup>(_block, wrapped_module_name);
     // Mark the insts in the abort list
     std::unordered_set<odb::dbInst*> abort_insts;
     for (const auto& module_name : abort[i]) {
@@ -180,6 +185,7 @@ bool ChipletModuleWrapper::initModuleGroups(
         }
       } else {
         _logger->report("Module {} not found in abort list", abort_module_name);
+        return false;
       }
     }
 
@@ -195,7 +201,7 @@ bool ChipletModuleWrapper::initModuleGroups(
       if (db_module) {
         for (odb::dbInst* inst : db_module->getInsts()) {
           if (abort_insts.find(inst) == abort_insts.end()) {
-            module_group->insts.push_back(inst);
+            module_group->addInst(inst);
           } else {
             _logger->report(
                 "Instance {} is in the abort list and will be skipped",
@@ -205,78 +211,20 @@ bool ChipletModuleWrapper::initModuleGroups(
       } else {
         _logger->report("Module {} not found in combination list",
                         combination_module_name);
+        return false;
       }
     }
-
-    _module_groups.push_back(module_group);
+    _module_groups.insert(module_group);
   }
 
   return true;
 }
 
 void ChipletModuleWrapper::wrapModule(
-    std::shared_ptr<ModuleConstraintGroup> module_group,
-    std::string module_name)
+    std::shared_ptr<ModuleConstraintGroup> module_group)
 {
-  //   // Calculate the total area of the instances in the module group
-  //   int total_area = 0;
-  //   for (auto& inst : module_group->insts) {
-  //     total_area += inst->getMaster()->getArea();
-  //   }
-
-  //   // Expand the total area with the utilization value (assuming utilization
-  //   is a
-  //   // percentage)
-  //   float utilization = 0.5;  // Example utilization value
-  //   int expanded_area = static_cast<int>(total_area / utilization);
-
-  //   // Create a new block for the module
-  //   odb::dbBlock* new_block = odb::dbBlock::create(_block,
-  //   module_name.c_str()); if (!new_block) {
-  //     std::cerr << "Failed to create new block" << std::endl;
-  //     return;
-  //   }
-
-  //   // Copy the via table from the original block to the new block
-  //   odb::dbBlock::copyViaTable(new_block, _block);
-
-  //   // Create a new master for the module
-  //   odb::dbMaster* master = odb::dbMaster::create(new_block,
-  //   module_name.c_str()); if (!master) {
-  //     std::cerr << "Failed to create master" << std::endl;
-  //     return;
-  //   }
-
-  //   // Set macro unit properties
-  //   master->setType(odb::dbMasterType::BLOCK);
-  //   master->setWidth(static_cast<int>(
-  //       sqrt(expanded_area)));  // Assuming square shape for simplicity
-  //   master->setHeight(static_cast<int>(sqrt(expanded_area)));
-
-  //   // Create a new instance and add it to the block
-  //   odb::dbInst* inst = odb::dbInst::create(_block, master,
-  //   module_name.c_str()); if (!inst) {
-  //     std::cerr << "Failed to create instance" << std::endl;
-  //     return;
-  //   }
-
-  //   // Set instance location and orientation
-  //   inst->setLocation(500, 500);  // Example location
-  //   inst->setOrient(odb::dbOrientType::R0);
-
-  //   // Add inner instances to the created macro
-  //   for (auto& inner_inst : module_group->insts) {
-  //     new_block->addInst(inner_inst);
-  //   }
-
-  //   // Remove the instances to be wrapped from the original block
-  //   for (auto& inner_inst : module_group->insts) {
-  //     _block->removeInst(inner_inst);
-  //   }
-
-  //   _block->addInst(inst);
-  //   // Update the module group
-  //   module_group->wrapper_inst = inst;
+  _logger->report("Wrapping module group: {}", module_group->getName());
+  module_group->createBlock(_block);
 }
 
 void ChipletModuleWrapper::unwrapModule(
@@ -295,11 +243,9 @@ void ChipletModuleWrapper::unwrapModule(
 void ChipletModuleWrapper::run()
 {
   // Run the wrapping and unwrapping process
-  //   for (auto& module_group : _module_groups) {
-  //     wrapModule(module_group,
-  //                "wrapped_" +
-  //                module_group->insts[0]->getMaster()->getName());
-  //   }
+  for (auto& module_group : _module_groups) {
+    wrapModule(module_group);
+  }
 }
 
 }  // namespace par
