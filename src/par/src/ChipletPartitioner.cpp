@@ -15,7 +15,7 @@ namespace par {
     }
     void ChipletPartitioner::initModuleConstraints(const std::string& partition_constraint_filename) {
         ModuleManager* module_manager = new ModuleManager();
-        module_manager->processFile(partition_constraint_filename);
+        module_manager->processFile(partition_constraint_filename.c_str());
         std::vector<std::vector<std::string>> &combination = module_manager->getCombine();
         std::vector<std::vector<std::string>> &abort = module_manager->getAbort();
         module_manager->printResults();
