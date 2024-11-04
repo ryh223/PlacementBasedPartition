@@ -155,7 +155,8 @@ bool MacroPlacer::init()
 
   // Connection driven will be disabled if some instances are missing liberty
   // cells.
-  connection_driven_ = !isMissingLiberty();
+  // connection_driven_ = !isMissingLiberty();
+  connection_driven_ = false;
 
   if (connection_driven_) {
     reportEdgePinCounts();

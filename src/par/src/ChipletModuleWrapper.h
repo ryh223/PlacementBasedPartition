@@ -126,10 +126,12 @@ class ModuleConstraintGroup
     DEBUG_PRINT("Calculating area of the block...");
     for (auto& inst : insts_) {
       odb::dbMaster* master = inst->getMaster();
+      DEBUG_PRINT("Instance: " << inst->getName() << " Master: " << master->getName());
       area_ += master->getArea();
     }
     height_ = width_ = int64_t(sqrt(area_));
     DEBUG_PRINT("Total area: " << area_);
+    DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
     // get cross nets that connect the insts in the group and the insts outside
     // copy insts to child block
     DEBUG_PRINT("Copying instances to child block...");
@@ -139,8 +141,7 @@ class ModuleConstraintGroup
       old_new_insts_map[inst] = odb::dbInst::create(child_block_,
                                                     inst->getMaster(),
                                                     inst->getName().c_str(),
-                                                    false,
-                                                    inst->getModule());
+                                                    true);
     }
     std::set<odb::dbNet*> cross_nets;
     std::set<odb::dbNet*> inner_nets;
@@ -241,11 +242,11 @@ class ModuleConstraintGroup
     DEBUG_PRINT("Wrapped Inst has ITerms: " << wrapped_inst_->getITerms().size());
     // create the wrapper cell
     // Library library;
-    odb::dbLib* library = top_block->getDataBase()->findLib(block_name_.c_str());
-    std::shared_ptr<sta::dbNetwork> sta_db_network = std::make_shared<sta::dbNetwork>();
-    sta_db_network->init(top_block->getDataBase(), logger);
-    sta_db_network->setBlock(top_block);
-    sta_db_network->makeLibrary(library);
+    // odb::dbLib* library = top_block->getDataBase()->findLib(block_name_.c_str());
+    // std::shared_ptr<sta::dbNetwork> sta_db_network = std::make_shared<sta::dbNetwork>();
+    // sta_db_network->init(top_block->getDataBase(), logger);
+    // sta_db_network->setBlock(top_block);
+    // sta_db_network->makeLibrary(library);
     // connect cross nets to the wrapper inst
     DEBUG_PRINT("Connecting cross nets to the wrapper instance...");
     for (auto it = outside_net_bterm_map.begin(); it != outside_net_bterm_map.end(); ++it) {
@@ -262,7 +263,12 @@ class ModuleConstraintGroup
     for (auto& [old_inst, new_inst] : old_new_insts_map) {
       insts_.insert(new_inst);
     }
-    odb::dbBox::create(wrapped_inst_, 0, 0, width_, height_);
+    odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
+    wrapped_inst_master->setWidth(width_);
+    wrapped_inst_master->setHeight(height_);
+    DEBUG_PRINT("Warpper instance INFO: " << wrapped_inst_master->getArea() << " "
+                                          << wrapped_inst_master->getWidth() << " "
+                                          << wrapped_inst_master->getHeight());
     DEBUG_PRINT("Wrapper instance bounding box created successfully\n");
     return true;
   }
@@ -297,6 +303,23 @@ class ChipletModuleWrapper
   odb::dbBlock* _block;
   utl::Logger* _logger;
   std::set<std::shared_ptr<ModuleConstraintGroup>> _module_groups;
+};
+
+class ChipletRegionCreater
+{
+ public:
+  ChipletRegionCreater(odb::dbDatabase* db,
+                       odb::dbBlock* block,
+                       utl::Logger* logger);
+  ~ChipletRegionCreater();
+  odb::dbGroup* createGroup(std::string group_name, std::set<odb::dbInst*>& insts);
+  odb::dbRegion* createRegion(std::string region_name, odb::dbGroup* group, int64_t xMin, int64_t yMin, int64_t xMax, int64_t yMax);
+  void printRegionInfo(odb::dbRegion* region, std::string file_name);
+ private:
+  // a group that contains the dbInsts and the macro they created
+  odb::dbDatabase* _db;
+  odb::dbBlock* _block;
+  utl::Logger* _logger;
 };
 
 }  // namespace par

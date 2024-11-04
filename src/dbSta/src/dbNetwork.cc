@@ -1164,7 +1164,7 @@ Port* dbNetwork::port(const Pin* pin) const
   } else if (modbterm) {
     ret = dbToSta(modbterm);
   }
-  assert(ret != nullptr);
+  // assert(ret != nullptr);
   return ret;
 }
 

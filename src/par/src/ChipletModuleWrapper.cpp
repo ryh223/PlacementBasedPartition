@@ -248,4 +248,79 @@ void ChipletModuleWrapper::run()
   }
 }
 
+ChipletRegionCreater::ChipletRegionCreater(odb::dbDatabase* db,
+                                           odb::dbBlock* block,
+                                           utl::Logger* logger)
+    : _db(db), _block(block), _logger(logger)
+{
+}
+
+ChipletRegionCreater::~ChipletRegionCreater()
+{
+  // Destructor implementation (if needed)
+}
+
+odb::dbGroup* ChipletRegionCreater::createGroup(std::string group_name,
+                                                std::set<odb::dbInst*>& insts)
+{
+  odb::dbGroup* group = odb::dbGroup::create(_block, group_name.c_str());
+  if (!group) {
+    _logger->report("Failed to create group: {}", group_name);
+    return nullptr;
+  }
+  _logger->report("Group {} created successfully", group_name);
+  for (auto inst : insts) {
+    group->addInst(inst);
+  }
+  return group;
+}
+
+odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
+                                                  odb::dbGroup* group,
+                                                  int64_t xMin,
+                                                  int64_t yMin,
+                                                  int64_t xMax,
+                                                  int64_t yMax)
+{
+  odb::dbRegion* region = odb::dbRegion::create(_block, region_name.c_str());
+  if (!region) {
+    _logger->report("Failed to create region: {}", region_name);
+    return nullptr;
+  }
+  odb::dbBox::create(region, xMin, yMin, xMax, yMax);
+  region->addGroup(group);
+  _logger->report("Region {} created successfully", region_name);
+  return region;
+}
+
+void ChipletRegionCreater::printRegionInfo(odb::dbRegion* region,
+                                           std::string file_name)
+{
+  std::ofstream ofs(file_name);
+  if (!ofs.is_open()) {
+    _logger->report("Failed to open file: {}", file_name);
+    return;
+  }
+  ofs << "Region information:\n";
+  ofs << "Region name: " << region->getName() << "\n";
+  ofs << "Bounding boxes: " << "\n";
+  for (auto box : region->getBoundaries()) {
+    ofs << "  - (" << box->xMin() << ", " << box->yMin() << ") to ("
+        << box->xMax() << ", " << box->yMax() << ")\n";
+  }
+  ofs << "Instances:\n";
+  for (auto group : region->getGroups()) {
+    for (auto inst : group->getInsts()) {
+          ofs << " - Instance name: " << inst->getName() << "\n";
+    ofs << " - Master name: " << inst->getMaster()->getName() << "\n";
+    ofs << " - Instance location: " << inst->getLocation().getX() << " x "
+        << inst->getLocation().getY() << "\n";
+    if (inst->isBlock()) {
+      ofs << "  IsBlock\n";
+    }
+    }
+  }
+  ofs.close();
+}
+
 }  // namespace par

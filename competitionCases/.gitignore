@@ -4,4 +4,6 @@ design_info.txt
 module_info.txt
 wrapped_*
 local_test
+test_region.txt
+temp.def
 *.odb

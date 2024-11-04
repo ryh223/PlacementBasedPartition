@@ -945,33 +945,21 @@ bool PartitionMgr::printDesignInfo() {
 }
 
 void PartitionMgr::checkRegionInfo() {
-  std::cout << "PartitionMgr::print_region_info" << std::endl;
   odb::dbBlock* block = db_->getChip()->getBlock();
+  par::ChipletRegionCreater* region_creater = new par::ChipletRegionCreater(db_, block, logger_);
+  odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/_41424_");
+  std::set<odb::dbInst*> insts;
+  insts.insert(test_inst);
+  odb::dbGroup* test_group = region_creater->createGroup("test_group", insts);
+  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 980000, 990000, 900000, 910000);
+
+  std::cout << "PartitionMgr::print_region_info" << std::endl;
   auto regions = block->getRegions();
   for(auto region_ : regions)
   {
-    std::ofstream region_info(region_->getName() + ".txt");
-    if (!region_info.is_open()) {
-      return;
-    }
-    region_info << "Region information:\n";
-    region_info << "Name: " << region_->getName() << "\n";
-    region_info << "Type: " << region_->getRegionType() << "\n";
-    region_info << "Invalid: " << (region_->isInvalid() ? "Yes" : "No") << "\n";
-    region_info << "Instances:\n";
-    for (auto inst : region_->getRegionInsts()) {
-      region_info << "  - " << inst->getName() << "\n";
-    }
-    region_info << "Boundaries:\n";
-    for (auto box : region_->getBoundaries()) {
-      region_info << "  - (" << box->xMin() << ", " << box->yMin() << ") to ("
-                  << box->xMax() << ", " << box->yMax() << ")\n";
-    }
-    region_info << "Groups:\n";
-    for (auto group : region_->getGroups()) {
-      region_info << "  - " << group->getName() << "\n";
-    }
-    region_info.close();
+    std::string filename = region_->getName() + ".txt";
+    region_creater->printRegionInfo(region_, filename);
   }
 }
+
 }// namespace par
