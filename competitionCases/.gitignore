@@ -4,4 +4,6 @@ design_info.txt
 module_info.txt
 public_case2
 validation
+wrapped_*
+local_test
 *.odb

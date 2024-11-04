@@ -82,7 +82,7 @@ Recommended conclusion: use map for concrete cells. They are invariant.
 #include "sta/PatternMatch.hh"
 #include "sta/PortDirection.hh"
 #include "utl/Logger.h"
-
+#include <iostream>
 namespace sta {
 
 using utl::ORD;

@@ -261,7 +261,7 @@ class PartitionMgr
   void readConstraintFile(const std::string& physical_constraint_filename,
                           const std::string& partition_constraint_filename);
   bool printDesignInfo();
-
+  void checkRegionInfo();
  private:
   odb::dbBlock* getDbBlock() const;
   sta::Instance* buildPartitionedInstance(

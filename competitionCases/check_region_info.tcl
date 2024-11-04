@@ -1,0 +1,3 @@
+source load_db.tcl
+
+read_constraint_file -physical_constraint public_case1/physical_constraints.txt -partition_constraint public_case1/module_constraints.txt

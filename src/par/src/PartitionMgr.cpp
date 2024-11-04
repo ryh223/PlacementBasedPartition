@@ -917,56 +917,21 @@ void PartitionMgr::partitionMsgTest(){
   std::cout << "PartitionMgr::partitionMsgTest" << std::endl;
 }
 
-void PartitionMgr::readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename){
-  odb::dbBlock* block = db_->getChip()->getBlock();
-  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
-  //parse physical constraint file
-  std::ifstream file(physical_constraint_filename);
-  if (!file.is_open()) {
-        throw std::runtime_error("Unable to open file");
-  }
-  std::string line;
-  std::istringstream iss;
-  std::getline(file, line);
-  iss.str(line);
-  int x1, y1, x2, y2;
-  iss >> x1 >> y1 >> x2 >> y2;
-  // std::cout << "x1: " << x1 << " y1: " << y1 << " x2: " << x2 << " y2: " << y2 << std::endl;
-  core_box CoreBox(std::pair<int,int>(x1, y1), std::pair<int,int>(x2, y2));
-  iss.clear();
-
-  std::getline(file, line);
-  iss.str(line);
-  long int chiplet_area;
-  iss >> chiplet_area;
-  // std::cout << "chiplet_area: " << chiplet_area << std::endl;
-  iss.clear();
-
-  int chiplet_num = 0;
-  std::vector<std::pair<float,float>> chiplet_utilizations;
-  std::vector<std::pair<float,float>> chiplet_aspect_ratios;
-  while(std::getline(file, line)){
-    iss.str(line);
-    float utilization_min, utilization_max, aspect_ratio_min, aspect_ratio_max;
-    iss >> utilization_min >> utilization_max >> aspect_ratio_min >> aspect_ratio_max;
-    // std::cout << utilization_min << " " << utilization_max << " " << aspect_ratio_min << " " << aspect_ratio_max << std::endl;
-    chiplet_utilizations.push_back(std::pair<float,float>(utilization_min, utilization_max));
-    chiplet_aspect_ratios.push_back(std::pair<float,float>(aspect_ratio_min, aspect_ratio_max));
-    iss.clear();
-    chiplet_num++;
-  }
-  // std::cout << "chiplet_num: " << chiplet_num << std::endl;
-  chipletPartitioner.initPhisicalConstraints(CoreBox, chiplet_area, chiplet_num, chiplet_utilizations, chiplet_aspect_ratios);
-  
-  chipletPartitioner.initModuleConstraints(partition_constraint_filename);
+void PartitionMgr::readConstraintFile(const std::string& physical_constraint_filename, const std::string& partition_constraint_filename) {
   //module list and virtual macro
   std::cout << "PartitionMgr::readConstraintFile" << std::endl;
   std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
   std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  //parse physical constraint file
+  chipletPartitioner.initPhisicalConstraints(physical_constraint_filename);
+  
+  chipletPartitioner.initModuleConstraints(partition_constraint_filename);
+
 }
 
-bool PartitionMgr::printDesignInfo()
-{
+bool PartitionMgr::printDesignInfo() {
   std::vector<std::vector<std::string>> combination;
   std::vector<std::vector<std::string>> abort;
   combination = {};
@@ -979,4 +944,34 @@ bool PartitionMgr::printDesignInfo()
   return true;
 }
 
+void PartitionMgr::checkRegionInfo() {
+  std::cout << "PartitionMgr::print_region_info" << std::endl;
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  auto regions = block->getRegions();
+  for(auto region_ : regions)
+  {
+    std::ofstream region_info(region_->getName() + ".txt");
+    if (!region_info.is_open()) {
+      return;
+    }
+    region_info << "Region information:\n";
+    region_info << "Name: " << region_->getName() << "\n";
+    region_info << "Type: " << region_->getRegionType() << "\n";
+    region_info << "Invalid: " << (region_->isInvalid() ? "Yes" : "No") << "\n";
+    region_info << "Instances:\n";
+    for (auto inst : region_->getRegionInsts()) {
+      region_info << "  - " << inst->getName() << "\n";
+    }
+    region_info << "Boundaries:\n";
+    for (auto box : region_->getBoundaries()) {
+      region_info << "  - (" << box->xMin() << ", " << box->yMin() << ") to ("
+                  << box->xMax() << ", " << box->yMax() << ")\n";
+    }
+    region_info << "Groups:\n";
+    for (auto group : region_->getGroups()) {
+      region_info << "  - " << group->getName() << "\n";
+    }
+    region_info.close();
+  }
+}
 }// namespace par
