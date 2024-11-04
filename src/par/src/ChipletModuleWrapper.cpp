@@ -151,6 +151,13 @@ bool ChipletModuleWrapper::initModuleGroups(
     _logger->report("The number of combination and abort is not equal");
     return false;
   }
+  //for debug
+// std::cout << "Combination size: " << combination.size() << std::endl;
+// for (size_t i = 0; i < combination.size(); ++i) {
+//     std::cout << "Combination " << i << " size: " << combination[i].size() << std::endl;
+// }
+
+
 
   // Add "top/" prefix to all elements in combination and abort vectors
   for (auto& comb : combination) {

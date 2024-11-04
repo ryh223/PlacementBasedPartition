@@ -2,6 +2,8 @@
 # zzy uses it to print the design info
 design_info.txt
 module_info.txt
+public_case2
+validation
 wrapped_*
 local_test
 test_region.txt
