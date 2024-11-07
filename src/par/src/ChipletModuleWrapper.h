@@ -10,11 +10,11 @@
 #include <string>
 #include <vector>
 
+#include "db_sta/dbNetwork.hh"
 #include "odb/db.h"  // Include the necessary OpenDB headers
 #include "utl/Logger.h"
-#include "db_sta/dbNetwork.hh"
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x) std::cout << x << std::endl
@@ -122,11 +122,13 @@ class ModuleConstraintGroup
    */
   bool createBlock(odb::dbBlock* top_block, utl::Logger* logger)
   {
+    int mpin_halo = 10;
     // travel the insts to get the area of the block
     DEBUG_PRINT("Calculating area of the block...");
     for (auto& inst : insts_) {
       odb::dbMaster* master = inst->getMaster();
-      DEBUG_PRINT("Instance: " << inst->getName() << " Master: " << master->getName());
+      DEBUG_PRINT("Instance: " << inst->getName()
+                               << " Master: " << master->getName());
       area_ += master->getArea();
     }
     height_ = width_ = int64_t(sqrt(area_));
@@ -138,10 +140,8 @@ class ModuleConstraintGroup
     // old insts map to new insts
     std::map<odb::dbInst*, odb::dbInst*> old_new_insts_map;
     for (auto inst : insts_) {
-      old_new_insts_map[inst] = odb::dbInst::create(child_block_,
-                                                    inst->getMaster(),
-                                                    inst->getName().c_str(),
-                                                    true);
+      old_new_insts_map[inst] = odb::dbInst::create(
+          child_block_, inst->getMaster(), inst->getName().c_str(), true);
     }
     std::set<odb::dbNet*> cross_nets;
     std::set<odb::dbNet*> inner_nets;
@@ -175,8 +175,8 @@ class ModuleConstraintGroup
           }
         }
         if (net_inside) {
-          DEBUG_PRINT("Net connected to instance within the group: "
-                      << net->getName());
+          DEBUG_PRINT(
+              "Net connected to instance within the group: " << net->getName());
           inner_nets.insert(net);
         }
       }
@@ -203,8 +203,8 @@ class ModuleConstraintGroup
         } else {
           if (outside_net_bterm_map.find(outside_net)
               == outside_net_bterm_map.end()) {
-            odb::dbBTerm* bterm = odb::dbBTerm::create(inside_net,
-                                              outside_net->getName().c_str());
+            odb::dbBTerm* bterm = odb::dbBTerm::create(
+                inside_net, outside_net->getName().c_str());
             outside_net_bterm_map[outside_net] = bterm;
           }
         }
@@ -239,17 +239,22 @@ class ModuleConstraintGroup
       std::cerr << "Failed to create wrapper instance" << std::endl;
       return false;
     }
-    DEBUG_PRINT("Wrapped Inst has ITerms: " << wrapped_inst_->getITerms().size());
+    DEBUG_PRINT(
+        "Wrapped Inst has ITerms: " << wrapped_inst_->getITerms().size());
     // create the wrapper cell
     // Library library;
-    // odb::dbLib* library = top_block->getDataBase()->findLib(block_name_.c_str());
-    // std::shared_ptr<sta::dbNetwork> sta_db_network = std::make_shared<sta::dbNetwork>();
+    // odb::dbLib* library =
+    // top_block->getDataBase()->findLib(block_name_.c_str());
+    // std::shared_ptr<sta::dbNetwork> sta_db_network =
+    // std::make_shared<sta::dbNetwork>();
     // sta_db_network->init(top_block->getDataBase(), logger);
     // sta_db_network->setBlock(top_block);
     // sta_db_network->makeLibrary(library);
     // connect cross nets to the wrapper inst
     DEBUG_PRINT("Connecting cross nets to the wrapper instance...");
-    for (auto it = outside_net_bterm_map.begin(); it != outside_net_bterm_map.end(); ++it) {
+    for (auto it = outside_net_bterm_map.begin();
+         it != outside_net_bterm_map.end();
+         ++it) {
       odb::dbNet* outside_net = it->first;
       odb::dbBTerm* bterm = it->second;
       DEBUG_PRINT("Connecting net: " << outside_net->getName()
@@ -263,12 +268,27 @@ class ModuleConstraintGroup
     for (auto& [old_inst, new_inst] : old_new_insts_map) {
       insts_.insert(new_inst);
     }
+    // set the pin location for master pins and block boundary
     odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
     wrapped_inst_master->setWidth(width_);
     wrapped_inst_master->setHeight(height_);
-    DEBUG_PRINT("Warpper instance INFO: " << wrapped_inst_master->getArea() << " "
-                                          << wrapped_inst_master->getWidth() << " "
-                                          << wrapped_inst_master->getHeight());
+    odb::dbTechLayer* pinlayer = top_block->getTech()->findLayer(top_block->getTech()->getRoutingLayerCount());
+    for (auto mterm : wrapped_inst_master->getMTerms()) {
+      // dbBox* dbBox::create(dbMPin* pin_, dbTechLayer* layer_, int x1, int y1,
+      // int x2, int y2)
+      for (auto pin : mterm->getMPins()) {
+        odb::dbBox::create(pin,
+                           pinlayer,
+                           width_ / 2 - mpin_halo,
+                           height_ / 2 - mpin_halo,
+                           width_ / 2 + mpin_halo,
+                           height_ / 2 + mpin_halo);
+      }
+    }
+    DEBUG_PRINT("Warpper instance INFO: "
+                << wrapped_inst_master->getArea() << " "
+                << wrapped_inst_master->getWidth() << " "
+                << wrapped_inst_master->getHeight());
     DEBUG_PRINT("Wrapper instance bounding box created successfully\n");
     return true;
   }
@@ -312,9 +332,16 @@ class ChipletRegionCreater
                        odb::dbBlock* block,
                        utl::Logger* logger);
   ~ChipletRegionCreater();
-  odb::dbGroup* createGroup(std::string group_name, std::set<odb::dbInst*>& insts);
-  odb::dbRegion* createRegion(std::string region_name, odb::dbGroup* group, int64_t xMin, int64_t yMin, int64_t xMax, int64_t yMax);
+  odb::dbGroup* createGroup(std::string group_name,
+                            std::set<odb::dbInst*>& insts);
+  odb::dbRegion* createRegion(std::string region_name,
+                              odb::dbGroup* group,
+                              int64_t xMin,
+                              int64_t yMin,
+                              int64_t xMax,
+                              int64_t yMax);
   void printRegionInfo(odb::dbRegion* region, std::string file_name);
+
  private:
   // a group that contains the dbInsts and the macro they created
   odb::dbDatabase* _db;
