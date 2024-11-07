@@ -5,6 +5,7 @@
 #include "odb/db.h"
 #include "utl/Logger.h"
 
+
 namespace par {
 void ChipletPartitioner::initPhisicalConstraints(
     const std::string& physical_constraint_filename)
@@ -45,6 +46,7 @@ void ChipletPartitioner::initPhisicalConstraints(
   _chiplet_utilization = chiplet_utilizations;
   _chiplet_aspect_ratio = chiplet_aspect_ratios;
 }
+
 void ChipletPartitioner::initModuleConstraints(
     const std::string& partition_constraint_filename)
 {
@@ -59,5 +61,91 @@ void ChipletPartitioner::initModuleConstraints(
   chiplet_module_wrapper->run();
   delete module_manager;
 }
+
+void ChipletPartitioner::run_partition()
+{
+  // odb::dbSet<odb::dbInst> insts = _block->getInsts();
+  // for (odb::dbInst* inst : insts) {
+  //   std::string inst_name = inst->getName();
+  //   odb::Point inst_pt = inst->getLocation();
+  //   odb::uint inst_width = inst->getMaster()->getWidth();
+  //   odb::uint inst_height = inst->getMaster()->getHeight();
+  //   std::cout << "Instance name: " << inst_name << ";lb_pt: " << inst_pt << ";width: " << inst_width << ";height: " << inst_height << std::endl;
+  // }
+  std::vector<ChipletBlock> blocks = initChipletBlocks();
+  SlicingTree* slicing_tree = new SlicingTree(_core_box.second.first - _core_box.first.first, _core_box.second.second - _core_box.first.second, blocks);
+  int temp = 100;
+  int freeze_temp = 10;
+  int step = 10;
+  run_simulated_annealing(temp, freeze_temp, step, *slicing_tree);
+}
+
+std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
+{
+  std::vector<ChipletBlock> blocks;
+  for (int i = 0; i < _num_chiplets; i++) {
+    ChipletBlock block(std::to_string(i), _chiplet_area, _chiplet_aspect_ratio[i].first,
+                       _chiplet_aspect_ratio[i].second, 3, _chiplet_utilization[i]);
+    blocks.push_back(block);
+  }
+  return blocks;
+}
+
+void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, SlicingTree slicing_tree)
+{
+  //minimize score
+  SlicingTree current_tree = slicing_tree;
+  std::vector<Chiplet> current_solution;
+  float current_score = evaluate(current_tree, current_solution);
+  float best_score = current_score;
+  std::vector<Chiplet> best_solition = current_solution;
+  while (temp > freeze_temp) {
+    for (int i = 0; i < step; i++) {
+      SlicingTree new_tree = current_tree;
+      new_tree.makeMove();
+      float new_score = evaluate(new_tree, current_solution);
+      float delta = new_score - current_score;
+      if (delta < 0) {
+        current_score = new_score;
+        current_tree = new_tree;
+        if (new_score < best_score) {
+          best_score = new_score;
+          best_solition = current_solution;
+        }
+      } else {
+        float prob = exp(-delta / temp);
+        if (rand() / RAND_MAX < prob) {
+          current_score = new_score;
+          current_tree = new_tree;
+        }
+      }
+      temp--;
+    }
+  }
+}
+
+float ChipletPartitioner::evaluate(SlicingTree slicing_tree, std::vector<Chiplet>& chiplet_boxes)
+{
+  float best_score = std::numeric_limits<float>::max();
+  for(int i = 0; i < slicing_tree.blocks.back()->shapes.size(); i++){
+    std::vector<Chiplet> solution = slicing_tree.genetateSolution(i);
+    if(solution.size() > 0){
+      float score = calculateScore(solution);
+      if(score < best_score){
+        best_score = score;
+        chiplet_boxes = solution;
+      }
+    }
+  }
+  return best_score;
+}
+
+float ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
+{
+  float score = 0;
+  return score;
+}
+
+
 
 }  // namespace par

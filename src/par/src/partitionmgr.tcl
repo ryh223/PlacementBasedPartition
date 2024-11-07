@@ -1078,3 +1078,12 @@ proc check_region_info { args } {
     flags {}
   par::check_region_info
 }
+
+sta::define_cmd_args "region_partition_test" {}
+
+proc region_partition_test { args } {
+  sta::parse_key_args "region_partition_test" args \
+    keys {} \
+    flags {}
+  par::region_partition_test
+}

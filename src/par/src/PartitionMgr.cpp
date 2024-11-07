@@ -962,4 +962,9 @@ void PartitionMgr::checkRegionInfo() {
   }
 }
 
+void PartitionMgr::regionPartitionTest() {
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  chipletPartitioner.run_partition();
+}
 }// namespace par

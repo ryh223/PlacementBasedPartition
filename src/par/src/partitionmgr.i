@@ -371,4 +371,9 @@ void check_region_info()
 {
   getPartitionMgr()->checkRegionInfo();
 }
+
+void region_partition_test()
+{
+  getPartitionMgr()->regionPartitionTest();
+}
 %}

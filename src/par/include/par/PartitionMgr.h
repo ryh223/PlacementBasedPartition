@@ -262,6 +262,7 @@ class PartitionMgr
                           const std::string& partition_constraint_filename);
   bool printDesignInfo();
   void checkRegionInfo();
+  void regionPartitionTest();
  private:
   odb::dbBlock* getDbBlock() const;
   sta::Instance* buildPartitionedInstance(

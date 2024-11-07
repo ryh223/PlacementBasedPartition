@@ -1,0 +1,3 @@
+source check_region_info.tcl
+
+region_partition_test
