@@ -66,6 +66,7 @@ add_library(par_lib
   src/PriorityQueue.cpp
   src/ChipletPartitioner.cpp
   src/ChipletModuleWrapper.cpp
+  src/SlicingTree.cpp 
 )
 
 target_include_directories(par_lib
