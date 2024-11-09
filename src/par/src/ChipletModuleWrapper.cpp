@@ -52,6 +52,7 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
     }
   }
   odb::dbBlock::destroy(child_block_);
+  odb::dbMaster::destroy(wrapped_inst_->getMaster());
   odb::dbInst::destroy(wrapped_inst_);
   wrapped_inst_ = nullptr;
   return true;
@@ -217,28 +218,6 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
   return true;
 }
 
-ChipletModuleWrapper::ChipletModuleWrapper(
-    odb::dbDatabase* db,
-    odb::dbBlock* block,
-    utl::Logger* logger,
-    std::vector<std::vector<std::string>>& combination,
-    std::vector<std::vector<std::string>>& abort)
-    : _db(db), _block(block), _logger(logger)
-{
-  // Initialize the module groups with combination and abort
-  _logger->report("Initializing module groups, {} combinations and {} aborts",
-                  combination.size(),
-                  abort.size());
-  if (initModuleGroups(combination, abort)) {
-    _logger->report("Module groups initialized, {} groups created",
-                    _module_groups.size());
-    std::string file_name = "module_info.txt";
-    printModuleInfo(file_name);
-  } else {
-    _logger->report("Failed to initialize module groups");
-  }
-}
-
 ChipletModuleWrapper::~ChipletModuleWrapper()
 {
   // Destructor implementation (if needed)
@@ -325,6 +304,10 @@ bool ChipletModuleWrapper::initModuleGroups(
     std::vector<std::vector<std::string>>& combination,
     std::vector<std::vector<std::string>>& abort)
 {
+  // Initialize the module groups with combination and abort
+  _logger->report("Initializing module groups, {} combinations and {} aborts",
+                  combination.size(),
+                  abort.size());
   // Initialize _module_groups based on some logic involving combination and
   // abort Method: create a module group for each combination, and add the
   // instances pointers
@@ -416,20 +399,32 @@ void ChipletModuleWrapper::unwrapModule(
   module_group->collapseBlock(module_group->getWrappedInst());
 }
 
-void ChipletModuleWrapper::run()
+void ChipletModuleWrapper::runWrap(
+    std::vector<std::vector<std::string>>& combination,
+    std::vector<std::vector<std::string>>& abort)
 {
+  if (initModuleGroups(combination, abort)) {
+    _logger->report("Module groups initialized, {} groups created",
+                    _module_groups.size());
+  } else {
+    _logger->report("Failed to initialize module groups");
+  }
   // Run the wrapping and unwrapping process
   for (auto& module_group : _module_groups) {
     wrapModule(module_group);
   }
 }
 
-void ChipletModuleWrapper::Test()
+void ChipletModuleWrapper::runUnwrap()
 {
-  run();
-  for (auto module_group : _module_groups) {
+  _logger->report("Unwrapping all module groups");
+  for (auto& module_group : _module_groups) {
     unwrapModule(module_group);
   }
+}
+
+void ChipletModuleWrapper::Test()
+{
 }
 
 ChipletRegionCreater::ChipletRegionCreater(odb::dbDatabase* db,

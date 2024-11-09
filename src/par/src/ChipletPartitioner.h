@@ -35,6 +35,7 @@ class Chiplet
   double getOverlapRatio(odb::dbInst* inst);
   // this method  will calculate the utilization for the current partition
   double getUtilization();
+  bool isInChiplet(odb::dbInst* inst);
 };
 
 class ChipletPartitioner
@@ -98,6 +99,8 @@ class ChipletPartitioner
   double evaluate(SlicingTree* slicing_tree,
                   std::vector<Chiplet>& chiplet_boxes);
   double calculateScore(std::vector<Chiplet>& chiplet_boxes);
+  void fineShape(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
+  void addBlockage(std::vector<Chiplet>& chiplet_boxes);
 };
 
 }  // namespace par

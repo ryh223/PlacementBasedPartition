@@ -53,8 +53,8 @@ class ModuleConstraintGroup
    * @note The destructor deletes the `wrapped_inst_`.
    */
  private:
-  odb::dbInst* wrapped_inst_;
-  odb::dbBlock* child_block_;
+  odb::dbInst* wrapped_inst_{nullptr};
+  odb::dbBlock* child_block_{nullptr};
   std::set<odb::dbInst*> insts_;
   std::string block_name_;
   odb::uint width_{0};
@@ -71,7 +71,18 @@ class ModuleConstraintGroup
   ModuleConstraintGroup(odb::dbBlock* top_block, std::string block_name)
   {
     block_name_ = block_name;
-    child_block_ = odb::dbBlock::create(top_block, block_name.c_str());
+    if (top_block->findInst(block_name.c_str())) {
+      wrapped_inst_ = top_block->findInst(block_name.c_str());
+      child_block_ = wrapped_inst_->getBlock();
+      width_ = wrapped_inst_->getMaster()->getWidth();
+      height_ = wrapped_inst_->getMaster()->getHeight();
+      area_ = width_ * height_;
+      for (auto inst : child_block_->getInsts()) {
+        insts_.insert(inst);
+      }
+    } else {
+      child_block_ = odb::dbBlock::create(top_block, block_name.c_str());
+    }
     width_ = height_ = area_ = 0;
   }
   /**
@@ -137,18 +148,20 @@ class ModuleConstraintGroup
 
 class ChipletModuleWrapper
 {
+ private:
+  ChipletModuleWrapper() = default;
  public:
-  ChipletModuleWrapper(odb::dbDatabase* db,
-                       odb::dbBlock* block,
-                       utl::Logger* logger,
-                       std::vector<std::vector<std::string>>& combination,
-                       std::vector<std::vector<std::string>>& abort);
+  static ChipletModuleWrapper& getInstance(){
+    static ChipletModuleWrapper instance;
+    return instance;
+  }
   ~ChipletModuleWrapper();
   void printDesignInfo(std::string file_name);
   void printModuleInfo(std::string file_name);
   // Initialize the module groups with combination and abort
   bool initModuleGroups(std::vector<std::vector<std::string>>& combination,
                         std::vector<std::vector<std::string>>& abort);
+  bool initModuleGroups(std::set<std::string>& block_names);
   // When the module is wrapped, the insts of the same module will be wrapped
   // into a block, and the wrapper_inst will be created. The insts will be
   // removed from the block.
@@ -156,9 +169,12 @@ class ChipletModuleWrapper
   // When the module is unwrapped, the insts will be added back to the block,
   // and the wrapper_inst will be removed.
   void unwrapModule(std::shared_ptr<ModuleConstraintGroup> module_group);
-  void run();
+  void runWrap(std::vector<std::vector<std::string>>& combination,
+    std::vector<std::vector<std::string>>& abort);
+  void runUnwrap();
+  std::set<std::shared_ptr<ModuleConstraintGroup>>& getModuleGroups() { return _module_groups; }
   void Test();
-  
+  void setOpenROAD(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger) { _db = db; _block = block; _logger = logger; }
  private:
   // a group that contains the dbInsts and the macro they created
   odb::dbDatabase* _db;

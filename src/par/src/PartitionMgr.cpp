@@ -937,9 +937,10 @@ bool PartitionMgr::printDesignInfo() {
   combination = {};
   abort = {};
   odb::dbBlock* block = db_->getChip()->getBlock();
-  par::ChipletModuleWrapper* wrapper
-      = new par::ChipletModuleWrapper(db_, block, logger_, combination, abort);
-  wrapper->printDesignInfo("design_info.txt");
+  par::ChipletModuleWrapper& wrapper
+      = par::ChipletModuleWrapper::getInstance();
+  wrapper.setOpenROAD(db_, block, logger_);
+  wrapper.printDesignInfo("design_info.txt");
   std::cout << "PartitionMgr::printDesignInfo" << std::endl;
   return true;
 }
@@ -951,7 +952,7 @@ void PartitionMgr::checkRegionInfo() {
   std::set<odb::dbInst*> insts;
   insts.insert(test_inst);
   odb::dbGroup* test_group = region_creater->createGroup("test_group", insts);
-  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 980000, 990000, 900000, 910000);
+  region_creater->createRegion("test_region", test_group, 900000, 910000, 980000, 990000);
 
   std::cout << "PartitionMgr::print_region_info" << std::endl;
   auto regions = block->getRegions();

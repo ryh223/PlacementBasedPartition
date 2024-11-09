@@ -1,5 +1,4 @@
 #include "ChipletPartitioner.h"
-
 #include "ChipletModuleWrapper.h"
 #include "moduleMananger.h"
 #include "odb/db.h"
@@ -53,16 +52,15 @@ void ChipletPartitioner::initPhisicalConstraints(
 void ChipletPartitioner::initModuleConstraints(
     const std::string& partition_constraint_filename)
 {
-  ModuleManager* module_manager = new ModuleManager();
+  std::shared_ptr<ModuleManager> module_manager = std::make_shared<ModuleManager>();
   module_manager->processFile(partition_constraint_filename);
   std::vector<std::vector<std::string>>& combination
       = module_manager->getCombine();
   std::vector<std::vector<std::string>>& abort = module_manager->getAbort();
   module_manager->printResults();
-  ChipletModuleWrapper* chiplet_module_wrapper
-      = new ChipletModuleWrapper(_db, _block, _logger, combination, abort);
-  chiplet_module_wrapper->run();
-  delete module_manager;
+  ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
+  chiplet_module_wrapper.setOpenROAD(_db, _block, _logger);
+  chiplet_module_wrapper.runWrap(combination, abort);
 }
 
 void ChipletPartitioner::run_partition(double temp, double freeze_temp, int step, double alpha)
@@ -136,9 +134,10 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
     }
   }
   for(Chiplet& chiplet : best_solition){
-    std::cout << "chiplet: " << chiplet.name << chiplet.location.first << " " << chiplet.location.second << " " << chiplet.width << " " << chiplet.height << std::endl;
+    _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
   }
   updateInsts(best_solition);
+  addBlockage(best_solition);
 }
 
 double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes)
@@ -150,11 +149,32 @@ double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chipl
       double score = calculateScore(solution);
       if(score < best_score){
         best_score = score;
+        fineShape(slicing_tree, solution);
         chiplet_boxes = solution;
       }
     }
   }
   return best_score;
+}
+
+void ChipletPartitioner::fineShape(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes){
+  // here we need to adjust the shape of the chiplet to legalize the solution and avoid the macro 
+}
+
+void ChipletPartitioner::addBlockage(std::vector<Chiplet>& chiplet_boxes){
+  int HalfBlockageWidth = 5;
+  // add blockage to the chiplet boxes
+  for(auto& chiplet : chiplet_boxes){
+    // get the boundary of the chiplet
+    int llx = chiplet.location.first;
+    int lly = chiplet.location.second;
+    int urx = llx + chiplet.width;
+    int ury = lly + chiplet.height;
+    odb::dbBlockage::create(_block, llx - HalfBlockageWidth, lly - HalfBlockageWidth, llx + HalfBlockageWidth, ury + HalfBlockageWidth);
+    odb::dbBlockage::create(_block, llx - HalfBlockageWidth, lly - HalfBlockageWidth, urx + HalfBlockageWidth, lly + HalfBlockageWidth);
+    odb::dbBlockage::create(_block, urx - HalfBlockageWidth, lly - HalfBlockageWidth, urx + HalfBlockageWidth, ury + HalfBlockageWidth);
+    odb::dbBlockage::create(_block, llx - HalfBlockageWidth, ury - HalfBlockageWidth, urx + HalfBlockageWidth, ury + HalfBlockageWidth);
+  }
 }
 
 void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
@@ -175,35 +195,58 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
     }
     chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
+  ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
+  chiplet_module_wrapper.runUnwrap();
+  // update regions
+  std::shared_ptr<ChipletRegionCreater> chiplet_region_creater = std::make_shared<ChipletRegionCreater>(_db, _block, _logger);
+  for(auto& chiplet : chiplet_boxes){
+    auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
+    auto region = chiplet_region_creater->createRegion(chiplet.name, group, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+  }
 }
 
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
   double alpha = 0.5;
-  double beta = 0.5;
+  double beta = 1.0;
   double score = 0;
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
   // 1. for each macro, calculate the max overlap ratio with chiplet partition
   size_t num_chiplets = chiplet_boxes.size();
   std::vector<odb::uint> chiplet_insts_areas(num_chiplets, 0);
-  for (auto inst : _block->getInsts()) {
-    // divide instances into different chiplet boxes and then calculate the
-    // score
-    double max_overlap = 0;
-    size_t max_overlap_idx = 0;
-    for (size_t i = 0; i < num_chiplets; i++) {
-      auto& chiplet = chiplet_boxes[i];
-      double overlap = chiplet.getOverlapRatio(inst);
-      if (overlap > max_overlap) {
-        max_overlap = overlap;
-        max_overlap_idx = i;
-      }
+  for (auto& chiplet : chiplet_boxes) {
+    if (chiplet.getArea() < _chiplet_area) {
+      return std::numeric_limits<double>::max();
     }
-    chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
-    if(inst->getMaster()->isBlock()){
+  }
+  for (auto inst : _block->getInsts()) {
+    if (inst->getMaster()->isBlock()) {
+      // divide instances into different chiplet boxes and then calculate the
+      // score
+      double max_overlap = 0;
+      size_t max_overlap_idx = 0;
+      for (size_t i = 0; i < num_chiplets; i++) {
+        auto& chiplet = chiplet_boxes[i];
+        double overlap = chiplet.getOverlapRatio(inst);
+        if (overlap > max_overlap) {
+          max_overlap = overlap;
+          max_overlap_idx = i;
+        }
+      }
+      chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
       score += alpha * std::abs(1 - max_overlap);
+    }
+    else {
+      // for standard cells, do not consider its area
+      for (size_t i = 0; i < num_chiplets; i++) {
+        auto& chiplet = chiplet_boxes[i];
+        if (chiplet.isInChiplet(inst)) {
+          chiplet_insts_areas[i] += inst->getMaster()->getArea();
+          break;
+        }
+      }
     }
   }
   // 2. for each chiplet partition calculate the utilization ratio
@@ -256,6 +299,14 @@ double Chiplet::getOverlapRatio(odb::dbInst* inst)
 double Chiplet::getUtilization()
 {
   return inst_area / getArea();
+}
+
+bool Chiplet::isInChiplet(odb::dbInst* inst)
+{
+  int inst_x, inst_y;
+  inst->getLocation(inst_x, inst_y);
+  return inst_x >= location.first && inst_x <= location.first + width &&
+         inst_y >= location.second && inst_y <= location.second + height;
 }
 
 }  // namespace par
