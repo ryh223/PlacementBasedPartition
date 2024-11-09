@@ -416,6 +416,10 @@ void ChipletModuleWrapper::runWrap(
   }
   // Run the wrapping and unwrapping process
   for (auto& module_group : _module_groups) {
+    if (module_group->getInsts().size() == 1 || module_group->getInsts().empty()) {
+      _logger->report("Module group {} skip unwrapping", module_group->getName());
+      continue;
+    }
     wrapModule(module_group);
   }
 }
@@ -424,6 +428,10 @@ void ChipletModuleWrapper::runUnwrap()
 {
   _logger->report("Unwrapping all module groups");
   for (auto& module_group : _module_groups) {
+    if (module_group->getInsts().size() == 1 || module_group->getInsts().empty()) {
+      _logger->report("Module group {} skip unwrapping", module_group->getName());
+      continue;
+    }
     unwrapModule(module_group);
   }
 }
