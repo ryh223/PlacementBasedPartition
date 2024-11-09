@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 #include <string>
 #include <vector>
 
@@ -6,25 +6,35 @@
 #include "odb/db.h"
 #include "utl/Logger.h"
 
+#define TEMPRAURE0 100
+#define FREEZE_TEMPERATURE 10
+#define STEP 10
+#define ALPHA 0.9
+
 namespace par {
 
-typedef std::pair<float, float> aspect_ratio;
-typedef std::pair<std::pair<float, float>, std::pair<float, float>> core_box;
+typedef std::pair<double, double> aspect_ratio;
+typedef std::pair<std::pair<double, double>, std::pair<double, double>> core_box;
 
 class Chiplet
 {
  public:
   std::string name;
   std::vector<odb::dbInst*> instances;
-  odb::uint width;
-  odb::uint height;
-  std::pair<odb::uint, odb::uint> location;
+  double width;
+  double height;
+  std::pair<double, double> location;
   utilization utilization_constaint;
-  float aspect_ratio;
-  // this method will calculate the overlap area of the instance with the chiplet over the total area of the instance  to see how likely the instance will be placed in the chiplet
-  float getOverlapRatio(odb::dbInst* inst);
+
+ public:
+  double getAspect_ratio() const { return height / width; }
+  double getArea() const { return width * height; }
+  // this method will calculate the overlap area of the instance with the
+  // chiplet over the total area of the instance  to see how likely the instance
+  // will be placed in the chiplet
+  double getOverlapRatio(odb::dbInst* inst);
   // this method  will calculate the utilization for the current partition
-  float getUtilization();
+  double getUtilization();
 };
 
 class ChipletPartitioner
@@ -62,9 +72,11 @@ class ChipletPartitioner
 
   void initModuleConstraints(const std::string& partition_constraint_filename);
 
-  void run_partition();
+  void run_partition(double temp = TEMPRAURE0,
+                     double freeze_temp = FREEZE_TEMPERATURE,
+                     int step = STEP,
+                     double alpha = ALPHA);
 
- private:
   core_box _core_box;
   long int _chiplet_area;
   int _num_chiplets;
@@ -79,11 +91,11 @@ class ChipletPartitioner
   void run_simulated_annealing(int temp,
                                int freeze_temp,
                                int step,
+                               double alpha,
                                SlicingTree slicing_tree);
-  float evaluate(SlicingTree slicing_tree, std::vector<Chiplet>& chiplet_boxes);
-  float calculateScore(std::vector<Chiplet>& chiplet_boxes);
-
-  // std::vector<type>  <module, vitual_macro>
+  double evaluate(SlicingTree* slicing_tree,
+                  std::vector<Chiplet>& chiplet_boxes);
+  double calculateScore(std::vector<Chiplet>& chiplet_boxes);
 };
 
 }  // namespace par

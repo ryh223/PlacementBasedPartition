@@ -967,4 +967,12 @@ void PartitionMgr::regionPartitionTest() {
   ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
   chipletPartitioner.run_partition();
 }
+
+void PartitionMgr::runPartition(double temp, double freeze_temp, int step, double alpha) {
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  chipletPartitioner.run_partition(temp, freeze_temp, step, alpha);
+}
+
+
 }// namespace par

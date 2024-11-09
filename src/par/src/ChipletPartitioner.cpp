@@ -21,23 +21,26 @@ void ChipletPartitioner::initPhisicalConstraints(
   int x1, y1, x2, y2;
   iss >> x1 >> y1 >> x2 >> y2;
   core_box CoreBox(std::pair<int, int>(x1, y1), std::pair<int, int>(x2, y2));
+  iss.clear();
 
   std::getline(file, line);
   iss.str(line);
   long int chiplet_area;
   iss >> chiplet_area;
+  iss.clear();
 
   int chiplet_num = 0;
-  std::vector<std::pair<float, float>> chiplet_utilizations;
-  std::vector<std::pair<float, float>> chiplet_aspect_ratios;
+  std::vector<std::pair<double, double>> chiplet_utilizations;
+  std::vector<std::pair<double, double>> chiplet_aspect_ratios;
   while (std::getline(file, line)) {
     iss.str(line);
-    float utilization_min, utilization_max, aspect_ratio_min, aspect_ratio_max;
+    double utilization_min, utilization_max, aspect_ratio_min, aspect_ratio_max;
     iss >> utilization_min >> utilization_max >> aspect_ratio_min
         >> aspect_ratio_max;
     chiplet_utilizations.emplace_back(utilization_min, utilization_max);
     chiplet_aspect_ratios.emplace_back(aspect_ratio_min, aspect_ratio_max);
     chiplet_num++;
+    iss.clear();
   }
 
   _core_box = CoreBox;
@@ -62,7 +65,7 @@ void ChipletPartitioner::initModuleConstraints(
   delete module_manager;
 }
 
-void ChipletPartitioner::run_partition()
+void ChipletPartitioner::run_partition(double temp, double freeze_temp, int step, double alpha)
 {
   // odb::dbSet<odb::dbInst> insts = _block->getInsts();
   // for (odb::dbInst* inst : insts) {
@@ -74,10 +77,7 @@ void ChipletPartitioner::run_partition()
   // }
   std::vector<ChipletBlock> blocks = initChipletBlocks();
   SlicingTree* slicing_tree = new SlicingTree(_core_box.second.first - _core_box.first.first, _core_box.second.second - _core_box.first.second, blocks);
-  int temp = 100;
-  int freeze_temp = 10;
-  int step = 10;
-  run_simulated_annealing(temp, freeze_temp, step, *slicing_tree);
+  run_simulated_annealing(temp, freeze_temp, step, alpha, *slicing_tree);
 }
 
 std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
@@ -91,21 +91,29 @@ std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
   return blocks;
 }
 
-void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, SlicingTree slicing_tree)
+void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree slicing_tree)
 {
   //minimize score
   SlicingTree current_tree = slicing_tree;
+  std::cout << "current_tree: " << current_tree.blocks[0]->name << std::endl;
   std::vector<Chiplet> current_solution;
-  float current_score = evaluate(current_tree, current_solution);
-  float best_score = current_score;
+  double current_score = evaluate(&current_tree, current_solution);
+  // std::cout << "current_tree: " << current_tree.blocks[0]->name << std::endl;
+  double best_score = current_score;
   std::vector<Chiplet> best_solition = current_solution;
+
+  SlicingTree new_tree;
+
   while (temp > freeze_temp) {
     for (int i = 0; i < step; i++) {
-      SlicingTree new_tree = current_tree;
+      new_tree = current_tree;
       new_tree.makeMove();
-      float new_score = evaluate(new_tree, current_solution);
-      float delta = new_score - current_score;
+      double new_score = evaluate(&new_tree, current_solution);
+      double delta = new_score - current_score;
+
+      bool accept = false;
       if (delta < 0) {
+        accept = true;
         current_score = new_score;
         current_tree = new_tree;
         if (new_score < best_score) {
@@ -113,24 +121,29 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
           best_solition = current_solution;
         }
       } else {
-        float prob = exp(-delta / temp);
+        double prob = exp(-delta / temp);
         if (rand() / RAND_MAX < prob) {
+          accept = true;
           current_score = new_score;
           current_tree = new_tree;
         }
+      } 
+
+      if(!accept){
+        current_tree.refresh();
       }
-      temp--;
+      temp *= alpha;
     }
   }
 }
 
-float ChipletPartitioner::evaluate(SlicingTree slicing_tree, std::vector<Chiplet>& chiplet_boxes)
+double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes)
 {
-  float best_score = std::numeric_limits<float>::max();
-  for(int i = 0; i < slicing_tree.blocks.back()->shapes.size(); i++){
-    std::vector<Chiplet> solution = slicing_tree.genetateSolution(i);
+  double best_score = std::numeric_limits<double>::max();
+  for(int i = 0; i < slicing_tree->blocks.back()->shapes.size(); i++){
+    std::vector<Chiplet> solution = slicing_tree->genetateSolution(i);
     if(solution.size() > 0){
-      float score = calculateScore(solution);
+      double score = calculateScore(solution);
       if(score < best_score){
         best_score = score;
         chiplet_boxes = solution;
@@ -140,12 +153,12 @@ float ChipletPartitioner::evaluate(SlicingTree slicing_tree, std::vector<Chiplet
   return best_score;
 }
 
-float ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
+double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
-  float alpha = 0.5;
-  float beta = 0.5;
-  float score = 0;
+  double alpha = 0.5;
+  double beta = 0.5;
+  double score = 0;
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
   // 1. for each macro, calculate the max overlap ratio with chiplet partition
@@ -172,7 +185,7 @@ float ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 // this method will calculate the overlap area of the instance with the chiplet
 // over the total area of the instance  to see how likely the instance will be
 // placed in the chiplet
-float Chiplet::getOverlapRatio(odb::dbInst* inst)
+double Chiplet::getOverlapRatio(odb::dbInst* inst)
 {
   int inst_x, inst_y;
   inst->getLocation(inst_x, inst_y);
@@ -195,11 +208,11 @@ float Chiplet::getOverlapRatio(odb::dbInst* inst)
                     std::max(inst_y, chiplet_y);
     overlap = overlap_x * overlap_y;
   }
-  return overlap / inst_area;
+  return double(overlap) / inst_area;
 }
 
 // this method  will calculate the utilization for the current partition
-float Chiplet::getUtilization()
+double Chiplet::getUtilization()
 {
   odb::uint total_area = 0;
   for (odb::dbInst* inst : instances) {

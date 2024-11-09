@@ -5,18 +5,87 @@
 #include <algorithm>
 
 namespace par{
-SlicingTree::SlicingTree(float w, float h, std::vector<ChipletBlock> blocks): width_height_constaints(w, h) {
+SlicingTree::SlicingTree(double w, double h, std::vector<ChipletBlock> blocks): width_height_constaints(w, h) {
     for(auto& block: blocks) {
         ChipletBlock* new_block = new ChipletBlock();
         *new_block = block;
+        check_block(new_block);
         this->blocks.push_back(new_block);
     }
+    for (int i = 0; i < blocks.size() - 1; i++){
+        if (i & 1){
+            this->blocks.push_back(new ChipletBlock("V"));
+        }
+        else{
+            this->blocks.push_back(new ChipletBlock("H"));
+        }
+    }
+    _init();
 }
 
 SlicingTree::~SlicingTree() {
     for(auto& block: blocks) {
         delete block;
     }
+}
+
+void SlicingTree::refresh(){
+    _init();
+}
+
+void SlicingTree::check_block(ChipletBlock* block){
+    for(auto &wh: block->shapes){
+        if(wh.width > width_height_constaints.first){
+            double area = wh.getArea();
+            wh.width = width_height_constaints.first;
+            wh.height = area / wh.width;
+        }
+        if(wh.height > width_height_constaints.second){
+            double area = wh.getArea();
+            wh.height = width_height_constaints.second;
+            wh.width = area / wh.height;
+        }
+    }
+}
+
+void SlicingTree::_init(){
+    // Stack for evaluating slicing polish expression
+    std::stack<ChipletBlock*> blockStack;
+
+    // Go through all elements in polish slicing tree
+    for (ChipletBlock *block_i : blocks){
+        // Check if slice
+        if (block_i->name == "H" or block_i->name == "V"){
+            // Stack must be atleast size 2
+            assert(blockStack.size() >= 2);
+
+            // Get children
+            ChipletBlock *a = blockStack.top();
+            blockStack.pop();
+            ChipletBlock *b = blockStack.top();
+            blockStack.pop();
+            
+            // Mark parent/child
+            a->parent = block_i;
+            b->parent = block_i;
+            block_i->leftchild = b;
+            block_i->rightchild = a;
+
+            if(block_i->name == "V"){
+                verticalNodeSizing(b, a, block_i);
+            } else {
+                horizontalNodeSizing(b, a, block_i);
+            }
+        }
+
+        // Add result back to stack
+        blockStack.push(block_i);
+    }
+
+    assert(blockStack.size() == 1);
+
+    // Fix root node parent
+    blockStack.top()->parent = NULL;
 }
 
 void SlicingTree::makeMove() {
@@ -87,7 +156,7 @@ void SlicingTree::scoreUp(ChipletBlock* block){
         scoreUp(block->parent);
     } 
     // else {
-    //     float min_area = std::numeric_limits<float>::max();
+    //     double min_area = std::numeric_limits<double>::max();
     //     for (Width_Heights &wh : block->shapes){
     //         if(wh.width <= width_height_constaints.first && wh.height <= width_height_constaints.second){
     //             double area = wh.getArea();
@@ -121,8 +190,8 @@ void SlicingTree::updatePointers(){
             // Mark parent/child
             a->parent = block_i;
             b->parent = block_i;
-            block_i->leftchild = a;
-            block_i->rightchild = b;
+            block_i->leftchild = b;
+            block_i->rightchild = a;
         }
 
         // Add result back to stack
@@ -151,6 +220,8 @@ void SlicingTree::updateScore(ChipletBlock* block){
 std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
     std::vector<Chiplet> solution;
     ChipletBlock *root = blocks[blocks.size() - 1];
+    root->x_coordination = 0; 
+    root->y_coordination = 0;
     assert(root->name == "H" or root->name == "V");
 
     if(root->shapes[wh_index].width >= width_height_constaints.first && root->shapes[wh_index].height >= width_height_constaints.second){
@@ -165,15 +236,19 @@ std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
             std::pair<ChipletBlock*, size_t> block_info = helpStack.top();
             helpStack.pop();
             if(block_info.first->name == "H"){
-                float max_width = block_info.first->shapes[block_info.second].width;
+                double max_width = block_info.first->shapes[block_info.second].width;
                 ChipletBlock* leftchild = block_info.first->leftchild;
                 ChipletBlock* rightchild = block_info.first->rightchild;
-                size_t leftchild_index = block_info.first->shapes_index;
-                size_t rightchild_index = block_info.first->shapes_index;
+
+                size_t leftchild_index = block_info.first->shapes[block_info.second].left_index;
+                size_t rightchild_index = block_info.first->shapes[block_info.second].right_index;
+                
+                double left_height = block_info.first->leftchild->shapes[leftchild_index].height;
+                
                 leftchild->x_coordination = block_info.first->x_coordination;
                 rightchild->x_coordination = block_info.first->x_coordination;
                 leftchild->y_coordination = block_info.first->y_coordination;
-                rightchild->y_coordination = block_info.first->y_coordination + block_info.first->shapes[block_info.second].height;
+                rightchild->y_coordination = block_info.first->y_coordination + left_height;
                 if(leftchild->name != "H" && leftchild->name != "V"){
                     Chiplet _chiplet = create_chiplet_max_width(leftchild, leftchild_index, max_width);
                     solution.push_back(_chiplet);
@@ -187,13 +262,17 @@ std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
                     helpStack.push(std::make_pair(rightchild, rightchild_index));
                 }
             } else if(block_info.first->name == "V"){
-                float max_height = block_info.first->shapes[block_info.second].height;
+                double max_height = block_info.first->shapes[block_info.second].height;
                 ChipletBlock* leftchild = block_info.first->leftchild;
                 ChipletBlock* rightchild = block_info.first->rightchild;
-                size_t leftchild_index = block_info.first->shapes_index;
-                size_t rightchild_index = block_info.first->shapes_index;
+
+                size_t leftchild_index = block_info.first->shapes[block_info.second].left_index;
+                size_t rightchild_index = block_info.first->shapes[block_info.second].right_index;
+
+                double left_width = block_info.first->leftchild->shapes[leftchild_index].width;
+
                 leftchild->x_coordination = block_info.first->x_coordination;
-                rightchild->x_coordination = block_info.first->x_coordination + block_info.first->shapes[block_info.second].width;
+                rightchild->x_coordination = block_info.first->x_coordination + left_width;
                 leftchild->y_coordination = block_info.first->y_coordination;
                 rightchild->y_coordination = block_info.first->y_coordination;
                 if(leftchild->name != "H" && leftchild->name != "V"){
@@ -211,28 +290,36 @@ std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
             }
         }
     }
+
+    //adapt solution
+    double y_adapt_ratio = width_height_constaints.second / root->shapes[wh_index].height;
+    double x_adapt_ratio = width_height_constaints.first / root->shapes[wh_index].width;
+    for(auto &chiplet: solution){
+        chiplet.width *= x_adapt_ratio;
+        chiplet.height *= y_adapt_ratio;
+        chiplet.location.first *= x_adapt_ratio;
+        chiplet.location.second *= y_adapt_ratio;
+    }
     return solution;
 }
 
-Chiplet SlicingTree::create_chiplet_max_width(ChipletBlock* block, size_t index, float max_width){
+Chiplet SlicingTree::create_chiplet_max_width(ChipletBlock* block, size_t index, double max_width){
     Chiplet _chiplet;
     _chiplet.name = block->name;
     _chiplet.width = std::min(max_width, block->shapes[index].height * block->max_orientation_ratio);
     _chiplet.height = block->shapes[index].height;
     _chiplet.location = std::make_pair(block->x_coordination, block->y_coordination);
     _chiplet.utilization_constaint = block->utilaization_constaint;
-    _chiplet.aspect_ratio = _chiplet.width / _chiplet.height;
     return _chiplet;
 }
 
-Chiplet SlicingTree::create_chiplet_max_height(ChipletBlock* block, size_t index, float max_height){
+Chiplet SlicingTree::create_chiplet_max_height(ChipletBlock* block, size_t index, double max_height){
     Chiplet _chiplet;
     _chiplet.name = block->name;
     _chiplet.width = block->shapes[index].width;
     _chiplet.height = std::min(max_height, block->shapes[index].width / block->min_orientation_ratio);
     _chiplet.location = std::make_pair(block->x_coordination, block->y_coordination);
     _chiplet.utilization_constaint = block->utilaization_constaint;
-    _chiplet.aspect_ratio = _chiplet.width / _chiplet.height;
     return _chiplet;
 }
 
@@ -240,19 +327,19 @@ void SlicingTree::verticalNodeSizing(ChipletBlock* leftchild, ChipletBlock* righ
     std::sort(
         leftchild->shapes.begin(), 
         leftchild->shapes.end(), 
-        [](const Width_Heights &l, const Width_Heights &r){ return l.width < r.width; }
+        [](const Width_Heights &l, const Width_Heights &r){ return l.height > r.height; }
     );
     std::sort(
         rightchild->shapes.begin(), 
         rightchild->shapes.end(), 
-        [](const Width_Heights &l, const Width_Heights &r){ return l.width < r.width; }
+        [](const Width_Heights &l, const Width_Heights &r){ return l.height > r.height; }
     );
 
     // Clear result sizes
     block->shapes.clear();
 
     int len_left = leftchild->shapes.size();
-    int len_right = leftchild->shapes.size();
+    int len_right = rightchild->shapes.size();
     int i = 0, j = 0;
     double new_width, new_height;
     Width_Heights left_wh, right_wh;
@@ -266,18 +353,22 @@ void SlicingTree::verticalNodeSizing(ChipletBlock* leftchild, ChipletBlock* righ
         new_width = left_wh.width + right_wh.width;
         new_height = std::max(left_wh.height, right_wh.height);
 
-        // Create width height object storing which indexes 
-        Width_Heights new_wh(new_width, new_height, i, j);
+        if(new_width < width_height_constaints.first * 1.2 && new_height < width_height_constaints.second * 1.2){
+            // Create width height object storing which indexes 
+            Width_Heights new_wh(new_width, new_height, i, j);
 
-        // Add to result block
-        block->shapes.push_back(new_wh);
+            // Add to result block
+            block->shapes.push_back(new_wh);
+        }
 
         // Increment correct index
         if (new_height == left_wh.height){
             i++;
+            continue;
         }
         if (new_height == right_wh.height){
             j++;
+            continue;
         }
     }
 }
@@ -286,19 +377,19 @@ void SlicingTree::horizontalNodeSizing(ChipletBlock* leftchild, ChipletBlock* ri
     std::sort(
         leftchild->shapes.begin(), 
         leftchild->shapes.end(), 
-        [](const Width_Heights &l, const Width_Heights &r){ return l.height < r.height; }
+        [](const Width_Heights &l, const Width_Heights &r){ return l.width > r.width; }
     );
     std::sort(
         rightchild->shapes.begin(), 
         rightchild->shapes.end(), 
-        [](const Width_Heights &l, const Width_Heights &r){ return l.height < r.height; }
+        [](const Width_Heights &l, const Width_Heights &r){ return l.width > r.width; }
     );
 
     // Clear result sizes
     block->shapes.clear();
 
     int len_left = leftchild->shapes.size();
-    int len_right = leftchild->shapes.size();
+    int len_right = rightchild->shapes.size();
     int i = 0, j = 0;
     double new_width, new_height;
     Width_Heights left_wh, right_wh;
@@ -312,18 +403,22 @@ void SlicingTree::horizontalNodeSizing(ChipletBlock* leftchild, ChipletBlock* ri
         new_width = std::max(left_wh.width, right_wh.width);
         new_height = left_wh.height + right_wh.height;
 
-        // Create width height object storing which indexes 
-        Width_Heights new_wh(new_width, new_height, i, j);
+        if(new_height < width_height_constaints.second * 1.2 && new_width < width_height_constaints.first * 1.2){
+            // Create width height object storing which indexes 
+            Width_Heights new_wh(new_width, new_height, i, j);
 
-        // Add to result block
-        block->shapes.push_back(new_wh);
+            // Add to result block
+            block->shapes.push_back(new_wh);
+        }
 
         // Increment correct index
         if (new_width == left_wh.width){
             i++;
+            continue;
         }
         if (new_width == right_wh.width){
             j++;
+            continue;
         }
     }
 }

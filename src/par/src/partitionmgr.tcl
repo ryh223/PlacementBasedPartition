@@ -1087,3 +1087,40 @@ proc region_partition_test { args } {
     flags {}
   par::region_partition_test
 }
+
+sta::define_cmd_args "run_partition" {-t0 t0 -tf tf -step step -alpha alpha}
+
+proc run_partition { args } {
+  sta::parse_key_args "run_partition" args \
+    keys { -t0 \
+      -tf \
+      -step \
+      -alpha
+    } flags { }
+  
+  if { [info exists keys(-t0)] } {
+    set t0 $keys(-t0)
+  } else {
+    error "Missing mandatory argument -t0"
+  }
+
+  if { [info exists keys(-tf)] } {
+    set tf $keys(-tf)
+  } else {
+    error "Missing mandatory argument -tf"
+  }
+
+  if { [info exists keys(-step)] } {
+    set step $keys(-step)
+  } else {
+    error "Missing mandatory argument -step"
+  }
+
+  if { [info exists keys(-alpha)] } {
+    set alpha $keys(-alpha)
+  } else {
+    error "Missing mandatory argument -alpha"
+  }
+  
+  par::run_partition $t0 $tf $step $alpha
+}
