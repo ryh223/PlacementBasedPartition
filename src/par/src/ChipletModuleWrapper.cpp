@@ -475,6 +475,7 @@ odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
                                                   int64_t yMax)
 {
   odb::dbRegion* region = odb::dbRegion::create(_block, region_name.c_str());
+  // region->setRegionType(odb::dbRegionType::SUGGESTED);
   if (!region) {
     _logger->report("Failed to create region: {}", region_name);
     return nullptr;

@@ -135,8 +135,8 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
     _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
   }
   updateInsts(best_solition);
-  addBlockage(best_solition);
-  resetMacro();
+  // addBlockage(best_solition);
+  // resetMacro();
 }
 
 void ChipletPartitioner::resetMacro(){
@@ -187,7 +187,7 @@ void ChipletPartitioner::addBlockage(std::vector<Chiplet>& chiplet_boxes){
 
 void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   size_t num_chiplets = chiplet_boxes.size();
-  std::vector<odb::uint> chiplet_insts_areas(num_chiplets, 0);
+  // std::vector<long long int> chiplet_insts_areas(num_chiplets, 0);
   // clear instances in the chiplet boxes
   for(auto& chiplet : chiplet_boxes){
     chiplet.instances.clear();
@@ -207,19 +207,21 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
           max_overlap_idx = i;
         }
       }
-      chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+      // chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
     }
     else {
       // for standard cells, do not consider its area
       for (size_t i = 0; i < num_chiplets; i++) {
         auto& chiplet = chiplet_boxes[i];
         if (chiplet.isInChiplet(inst)) {
-          chiplet_insts_areas[i] += inst->getMaster()->getArea();
+          // chiplet_insts_areas[i] += inst->getMaster()->getArea();
           max_overlap_idx = i;
           break;
         }
       }
     }
+    if(inst->getMaster()->isBlock() && inst->getName().substr(0, 4) != "wrap")
+      continue;
     chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
   // Unwrap the wrapper module and update the chiplet boxes
@@ -243,17 +245,29 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   // update the chiplet boxes
   for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
     int partition = wrapper_inst_partition[wrapper_group->getName()];
+    int center_x = (chiplet_boxes[partition].location.first + chiplet_boxes[partition].width / 2) ;
+    int center_y = (chiplet_boxes[partition].location.second + chiplet_boxes[partition].height / 2) ;
     for(auto inst : wrapper_group->getInsts()){
       inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
+      inst->setLocation(center_x, center_y);
       chiplet_boxes[partition].instances.insert(inst);
     }
   }
   // update regions
   std::shared_ptr<ChipletRegionCreater> chiplet_region_creater = std::make_shared<ChipletRegionCreater>(_db, _block, _logger);
-  for(auto& chiplet : chiplet_boxes){
-    auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
-    auto region = chiplet_region_creater->createRegion(chiplet.name, group, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
-  }
+  // for(auto& chiplet : chiplet_boxes){
+  //   auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
+  //   auto region = chiplet_region_creater->createRegion(chiplet.name, group, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+  // }
+  auto group
+      = chiplet_region_creater->createGroup(chiplet_boxes[0].name, chiplet_boxes[0].instances);
+  auto region = chiplet_region_creater->createRegion(
+      chiplet_boxes[0].name,
+      group,
+      chiplet_boxes[0].location.first,
+      chiplet_boxes[0].location.second,
+      chiplet_boxes[0].location.first + chiplet_boxes[0].width,
+      chiplet_boxes[0].location.second + chiplet_boxes[0].height);
 }
 
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)

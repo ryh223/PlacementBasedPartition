@@ -949,12 +949,13 @@ bool PartitionMgr::printDesignInfo() {
 void PartitionMgr::checkRegionInfo() {
   odb::dbBlock* block = db_->getChip()->getBlock();
   par::ChipletRegionCreater* region_creater = new par::ChipletRegionCreater(db_, block, logger_);
-  odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/bp_cce/pc_inst_ram/cce_inst_ram/macro_mem/mem");
+  // odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/bp_cce/pc_inst_ram/cce_inst_ram/macro_mem/mem");
+  odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/_37584_");
   std::set<odb::dbInst*> insts;
   insts.insert(test_inst);
   odb::dbGroup* test_group = region_creater->createGroup("test_group", insts);
-  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 1040000, 1500000);
-
+  // odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 1040000, 1500000);
+  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 800000, 1000000);
   std::cout << "PartitionMgr::print_region_info" << std::endl;
   auto regions = block->getRegions();
   for(auto region_ : regions)
