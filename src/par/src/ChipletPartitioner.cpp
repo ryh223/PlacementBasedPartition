@@ -134,8 +134,18 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
   for(Chiplet& chiplet : best_solition){
     _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
   }
-  updateInsts(best_solition);
-  addBlockage(best_solition);
+  // updateInsts(best_solition);
+  // addBlockage(best_solition);
+  resetMacro();
+}
+
+void ChipletPartitioner::resetMacro(){
+  odb::dbSet<odb::dbInst> insts = _block->getInsts();
+  for (odb::dbInst* inst : insts) {
+    if (inst->getMaster()->isBlock()) {
+      inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
+    }
+  }
 }
 
 double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes)
@@ -160,7 +170,7 @@ void ChipletPartitioner::fineShape(SlicingTree* slicing_tree, std::vector<Chiple
 }
 
 void ChipletPartitioner::addBlockage(std::vector<Chiplet>& chiplet_boxes){
-  int HalfBlockageWidth = 5;
+  int HalfBlockageWidth = 380;
   // add blockage to the chiplet boxes
   for(auto& chiplet : chiplet_boxes){
     // get the boundary of the chiplet
