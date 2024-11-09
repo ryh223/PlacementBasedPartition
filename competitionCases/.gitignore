@@ -6,6 +6,7 @@ public_case2
 validation
 wrapped_*
 local_test
+hier_rtlmp
 test_region.txt
 temp.def
 *.odb

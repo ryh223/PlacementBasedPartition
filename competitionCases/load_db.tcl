@@ -2,6 +2,7 @@
 # check if pwd have case1.odb
 set tech_lef "pdk/lef/NangateOpenCellLibrary.tech.lef"
 set std_lef "pdk/lef/NangateOpenCellLibrary.macro.mod.lef"
+set case "case2"
 set lefs "
     pdk/lef/fakeram45_32x64.lef \
     pdk/lef/fakeram45_64x7.lef \
@@ -46,18 +47,18 @@ foreach lef_file ${lefs} {
 foreach lib_file ${libs} {
   read_liberty $lib_file
 }
-if { [file exists "case1.odb"] == 0 } {
-  puts "case1.odb not found"
-  read_verilog public_case1/input.v
+if { [file exists "${case}.odb"] == 0 } {
+  puts "${case}.odb not found"
+  read_verilog public_${case}/input.v
   link_design top
-  read_sdc public_case1/input.sdc
-  read_def -floorplan_initialize public_case1/input.def
+  read_sdc public_${case}/input.sdc
+  read_def -floorplan_initialize public_${case}/input.def
   # Save the design
-  write_db case1.odb
+  write_db ${case}.odb
 } else {
-  puts "case1.odb found"
-  read_db case1.odb
-  read_sdc public_case1/input.sdc
+  puts "${case}.odb found"
+  read_db ${case}.odb
+  read_sdc public_${case}/input.sdc
 }
 # Liberty units are fF,kOhm
 set_layer_rc -layer metal1 -resistance 5.4286e-03 -capacitance 7.41819E-02

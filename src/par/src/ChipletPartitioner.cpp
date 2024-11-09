@@ -142,10 +142,71 @@ float ChipletPartitioner::evaluate(SlicingTree slicing_tree, std::vector<Chiplet
 
 float ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
+  // regularization parameters
+  float alpha = 0.5;
+  float beta = 0.5;
   float score = 0;
+  // what gonna to do here is to calculate metrics we define to determine the
+  // quality of partition
+  // 1. for each macro, calculate the max overlap ratio with chiplet partition
+  for (auto inst : _block->getInsts()) {
+    if (inst->getMaster()->isBlock()) {
+      int max_overlap = 0;
+      for (auto chiplet : chiplet_boxes) {
+        int overlap = chiplet.getOverlapRatio(inst);
+        if (overlap > max_overlap) {
+          max_overlap = overlap;
+        }
+      }
+      score += alpha * max_overlap;
+    }
+  }
+  // 2. for each chiplet partiton calculate the utilization ratio
+  for (auto chiplet : chiplet_boxes) {
+    float utilization = chiplet.getUtilization();
+    score += beta * utilization;
+  }
   return score;
 }
 
+// this method will calculate the overlap area of the instance with the chiplet
+// over the total area of the instance  to see how likely the instance will be
+// placed in the chiplet
+float Chiplet::getOverlapRatio(odb::dbInst* inst)
+{
+  int inst_x, inst_y;
+  inst->getLocation(inst_x, inst_y);
+  odb::uint inst_width = inst->getMaster()->getWidth();
+  odb::uint inst_height = inst->getMaster()->getHeight();
+  odb::uint inst_area = inst->getMaster()->getArea(); 
+  int chiplet_x, chiplet_y;
+  chiplet_x = location.first;
+  chiplet_y = location.second;
+  odb::uint chiplet_width = width;
+  odb::uint chiplet_height = height;
+  odb::uint overlap = 0;
 
+  // inst and chiplet
+  if (inst_x + inst_width > chiplet_x && inst_x < chiplet_x + chiplet_width &&
+      inst_y + inst_height > chiplet_y && inst_y < chiplet_y + chiplet_height) {
+    int overlap_x = std::min(inst_x + inst_width, chiplet_x + chiplet_width) -
+                    std::max(inst_x, chiplet_x);
+    int overlap_y = std::min(inst_y + inst_height, chiplet_y + chiplet_height) -
+                    std::max(inst_y, chiplet_y);
+    overlap = overlap_x * overlap_y;
+  }
+  return overlap / inst_area;
+}
+
+// this method  will calculate the utilization for the current partition
+float Chiplet::getUtilization()
+{
+  odb::uint total_area = 0;
+  for (odb::dbInst* inst : instances) {
+    odb::uint inst_area = inst->getMaster()->getArea();
+    total_area += inst_area;
+  }
+  return total_area / (width * height);
+}
 
 }  // namespace par
