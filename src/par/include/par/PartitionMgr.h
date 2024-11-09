@@ -263,6 +263,7 @@ class PartitionMgr
   bool printDesignInfo();
   void checkRegionInfo();
   void regionPartitionTest();
+  void runPartition(double temp, double freeze_temp, int step, double alpha);
  private:
   odb::dbBlock* getDbBlock() const;
   sta::Instance* buildPartitionedInstance(

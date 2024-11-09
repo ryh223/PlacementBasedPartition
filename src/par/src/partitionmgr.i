@@ -376,4 +376,9 @@ void region_partition_test()
 {
   getPartitionMgr()->regionPartitionTest();
 }
+
+void run_partition(double temp, double freeze_temp, int step, double alpha)
+{
+  getPartitionMgr()->runPartition(temp, freeze_temp, step, alpha);
+}
 %}

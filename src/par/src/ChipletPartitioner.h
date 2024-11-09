@@ -6,20 +6,28 @@
 #include "utl/Logger.h"
 #include "SlicingTree.h"
 
+#define TEMPRAURE0 100
+#define FREEZE_TEMPERATURE 10
+#define STEP 10
+#define ALPHA 0.9
+
 namespace par {
     
-typedef std::pair<float, float> aspect_ratio;
-typedef std::pair<std::pair<float, float>, std::pair<float, float>> core_box;
+typedef std::pair<double, double> aspect_ratio;
+typedef std::pair<std::pair<double, double>, std::pair<double, double>> core_box;
 
 class Chiplet{
     public:
         std::string name;
         std::vector<odb::dbInst*> instances;
-        float width;
-        float height;
-        std::pair<float, float> location;
+        double width;
+        double height;
+        std::pair<double, double> location;
         utilization utilization_constaint;
-        float aspect_ratio;
+
+    public:
+        double getAspect_ratio() const { return height / width; }
+        double getArea() const { return width * height; }
 };
 
 class ChipletPartitioner {
@@ -50,7 +58,7 @@ public:
 
     void initModuleConstraints(const std::string& partition_constraint_filename);
 
-    void run_partition();
+    void run_partition(double temp = TEMPRAURE0, double freeze_temp = FREEZE_TEMPERATURE, int step = STEP, double alpha = ALPHA);
 
     
 
@@ -66,9 +74,9 @@ private:
     utl::Logger* _logger;
 
     std::vector<ChipletBlock> initChipletBlocks();
-    void run_simulated_annealing(int temp, int freeze_temp, int step, SlicingTree slicing_tree);
-    float evaluate(SlicingTree slicing_tree, std::vector<Chiplet>& chiplet_boxes);
-    float calculateScore(std::vector<Chiplet>& chiplet_boxes);
+    void run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree slicing_tree);
+    double evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
+    double calculateScore(std::vector<Chiplet>& chiplet_boxes);
 
     // std::vector<type>  <module, vitual_macro>
 };
