@@ -7,26 +7,215 @@
 
 namespace par {
 
-ChipletModuleWrapper::ChipletModuleWrapper(
-    odb::dbDatabase* db,
-    odb::dbBlock* block,
-    utl::Logger* logger,
-    std::vector<std::vector<std::string>>& combination,
-    std::vector<std::vector<std::string>>& abort)
-    : _db(db), _block(block), _logger(logger)
+bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
 {
-  // Initialize the module groups with combination and abort
-  _logger->report("Initializing module groups, {} combinations and {} aborts",
-                  combination.size(),
-                  abort.size());
-  if (initModuleGroups(combination, abort)) {
-    _logger->report("Module groups initialized, {} groups created",
-                    _module_groups.size());
-    std::string file_name = "module_info.txt";
-    printModuleInfo(file_name);
-  } else {
-    _logger->report("Failed to initialize module groups");
+  // reccreate the insts in the top block and recreate the connection
+  wrapped_inst_ = block_inst;
+  // old insts map to new insts
+  std::map<odb::dbInst*, odb::dbInst*> old_new_insts_map;
+  child_block_ = block_inst->getChild();
+  block_name_ = block_inst->getName();
+  odb::dbBlock* top_block = block_inst->getBlock();
+  for (auto inst : child_block_->getInsts()) {
+    old_new_insts_map[inst] = odb::dbInst::create(
+        top_block, inst->getMaster(), inst->getName().c_str(), true);
   }
+  insts_.clear();
+  for (auto& [old_inst, new_inst] : old_new_insts_map) {
+    insts_.insert(new_inst);
+  }
+  // get nets connect to wrapper inst
+  std::set<odb::dbNet*> cross_nets;
+  for (auto iterm : wrapped_inst_->getITerms()) {
+    odb::dbNet* net = iterm->getNet();
+    if (cross_nets.find(net) != cross_nets.end()) {
+      continue;
+    }
+    cross_nets.insert(net);
+  }
+  // reconnect the cross nets to the insts recreate in the child block
+  for (auto net : cross_nets) {
+    odb::dbNet* inner_cross_net = child_block_->findNet(net->getName().c_str());
+    for (auto iterm : inner_cross_net->getITerms()) {
+      auto mterm = iterm->getMTerm();
+      auto originst = iterm->getInst();
+      old_new_insts_map[originst]->getITerm(mterm)->connect(net);
+    }
+    odb::dbNet::destroy(inner_cross_net);
+  }
+  // reconnect the inner nets in child block to recovered insts
+  for (auto net : child_block_->getNets()) {
+    for (auto iterm : net->getITerms()) {
+      auto mterm = iterm->getMTerm();
+      auto originst = iterm->getInst();
+      old_new_insts_map[originst]->getITerm(mterm)->connect(net);
+    }
+  }
+  odb::dbBlock::destroy(child_block_);
+  odb::dbMaster::destroy(wrapped_inst_->getMaster());
+  odb::dbInst::destroy(wrapped_inst_);
+  wrapped_inst_ = nullptr;
+  return true;
+}
+
+bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
+{
+  int mpin_halo = 10;
+  // travel the insts to get the area of the block
+  DEBUG_PRINT("Calculating area of the block...");
+  for (auto& inst : insts_) {
+    odb::dbMaster* master = inst->getMaster();
+    DEBUG_PRINT("Instance: " << inst->getName()
+                             << " Master: " << master->getName());
+    area_ += master->getArea();
+  }
+  height_ = width_ = int64_t(sqrt(area_));
+  DEBUG_PRINT("Total area: " << area_);
+  DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
+  // get cross nets that connect the insts in the group and the insts outside
+  // copy insts to child block
+  DEBUG_PRINT("Copying instances to child block...");
+  // old insts map to new insts
+  std::map<odb::dbInst*, odb::dbInst*> old_new_insts_map;
+  for (auto inst : insts_) {
+    old_new_insts_map[inst] = odb::dbInst::create(
+        child_block_, inst->getMaster(), inst->getName().c_str(), true);
+  }
+  std::set<odb::dbNet*> cross_nets;
+  std::set<odb::dbNet*> inner_nets;
+  DEBUG_PRINT("Identifying cross nets and inner nets...");
+  for (auto inst : insts_) {
+    DEBUG_PRINT("Processing instance: " << inst->getName());
+    for (auto iterm : inst->getITerms()) {
+      odb::dbNet* net = iterm->getNet();
+      if (!net) {
+        // DEBUG_PRINT("Net is null " << inst->getName() << " "
+        //                           << iterm->getMTerm()->getName());
+        continue;
+      }
+      if (cross_nets.find(net) != cross_nets.end()
+          || inner_nets.find(net) != inner_nets.end()) {
+        continue;
+      }
+      if (net->getBTerms().size() != 0) {
+        DEBUG_PRINT("Net connected to block terminals: " << net->getName());
+        cross_nets.insert(net);
+        continue;
+      }
+      bool net_inside = true;
+      for (auto iterm : net->getITerms()) {
+        if (insts_.find(iterm->getInst()) == insts_.end()) {
+          DEBUG_PRINT("Net connected to instance outside the group: "
+                      << net->getName());
+          cross_nets.insert(net);
+          net_inside = false;
+          break;
+        }
+      }
+      if (net_inside) {
+        DEBUG_PRINT(
+            "Net connected to instance within the group: " << net->getName());
+        inner_nets.insert(net);
+      }
+    }
+  }
+  DEBUG_PRINT("Number of cross nets identified: " << cross_nets.size());
+  DEBUG_PRINT("Number of inner nets identified: " << inner_nets.size());
+  // spilt the cross net into two nets, one is outside, one is inside
+  DEBUG_PRINT("Splitting cross nets...");
+  std::map<odb::dbNet*, odb::dbBTerm*> outside_net_bterm_map;
+  for (auto net : cross_nets) {
+    odb::dbNet* outside_net
+        = net;  // the net in the parent block is the outside net
+    odb::dbNet* inside_net
+        = odb::dbNet::create(child_block_, outside_net->getName().c_str());
+    if (!inside_net) {
+      std::cerr << "Failed to create net in child block" << std::endl;
+      return false;
+    }
+    for (odb::dbITerm* iterm : outside_net->getITerms()) {
+      if (insts_.find(iterm->getInst()) != insts_.end()) {
+        auto mterm = iterm->getMTerm();
+        auto originst = iterm->getInst();
+        old_new_insts_map[originst]->getITerm(mterm)->connect(inside_net);
+      } else {
+        if (outside_net_bterm_map.find(outside_net)
+            == outside_net_bterm_map.end()) {
+          odb::dbBTerm* bterm = odb::dbBTerm::create(
+              inside_net, outside_net->getName().c_str());
+          outside_net_bterm_map[outside_net] = bterm;
+        }
+      }
+    }
+  }
+  DEBUG_PRINT("Cross nets split successfully");
+  DEBUG_PRINT("Inner nets identified, creating nets in child block...");
+  for (auto net : inner_nets) {
+    odb::dbNet* inside_net
+        = odb::dbNet::create(child_block_, net->getName().c_str());
+    if (!inside_net) {
+      std::cerr << "Failed to create net in child block" << std::endl;
+      return false;
+    }
+    for (auto iterm : net->getITerms()) {
+      if (insts_.find(iterm->getInst()) != insts_.end()) {
+        auto mterm = iterm->getMTerm();
+        auto originst = iterm->getInst();
+        old_new_insts_map[originst]->getITerm(mterm)->connect(inside_net);
+      }
+    }
+    odb::dbNet::destroy(net);
+  }
+  // destroy the insts in the top block
+  for (auto inst : insts_) {
+    odb::dbInst::destroy(inst);
+  }
+  DEBUG_PRINT("Creating wrapper instance with name: " << block_name_);
+  wrapped_inst_
+      = odb::dbInst::create(top_block, child_block_, block_name_.c_str());
+  if (!wrapped_inst_) {
+    std::cerr << "Failed to create wrapper instance" << std::endl;
+    return false;
+  }
+  DEBUG_PRINT("Wrapped Inst has ITerms: " << wrapped_inst_->getITerms().size());
+  // connect cross nets to the wrapper inst
+  DEBUG_PRINT("Connecting cross nets to the wrapper instance...");
+  for (auto it = outside_net_bterm_map.begin();
+       it != outside_net_bterm_map.end();
+       ++it) {
+    odb::dbNet* outside_net = it->first;
+    odb::dbBTerm* bterm = it->second;
+    DEBUG_PRINT("Connecting net: " << outside_net->getName()
+                                   << " to bterm: " << bterm->getName());
+    odb::dbITerm* iterm = bterm->getITerm();
+    DEBUG_PRINT("ITerm found: " << iterm->getMTerm()->getName());
+    iterm->connect(outside_net);
+  }
+  // reassign the dbInst set
+  insts_.clear();
+  for (auto& [old_inst, new_inst] : old_new_insts_map) {
+    insts_.insert(new_inst);
+  }
+  // set the pin location for master pins and block boundary
+  odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
+  wrapped_inst_master->setWidth(width_);
+  wrapped_inst_master->setHeight(height_);
+  odb::dbTechLayer* pinlayer = top_block->getTech()->findLayer(
+      top_block->getTech()->getRoutingLayerCount());
+  for (auto mterm : wrapped_inst_master->getMTerms()) {
+    // dbBox* dbBox::create(dbMPin* pin_, dbTechLayer* layer_, int x1, int y1,
+    // int x2, int y2)
+    for (auto pin : mterm->getMPins()) {
+      odb::dbBox::create(pin,
+                         pinlayer,
+                         width_ / 2 - mpin_halo,
+                         height_ / 2 - mpin_halo,
+                         width_ / 2 + mpin_halo,
+                         height_ / 2 + mpin_halo);
+    }
+  }
+  DEBUG_PRINT("Wrapper instance bounding box created successfully\n");
+  return true;
 }
 
 ChipletModuleWrapper::~ChipletModuleWrapper()
@@ -98,28 +287,6 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
       ofs << "IsBlock\n";
     }
   }
-
-  //   // Iterate over nets
-  //   for (auto net : _block->getNets()) {
-  //     ofs << "Net name: " << net->getName() << "\n";
-  //     ofs << "Net connections: " << net->getITerms().size() << " drivers, "
-  //         << net->getBTerms().size() << " loads\n";
-
-  //     // Print ITerms information
-  //     ofs << "ITerms:\n";
-  //     for (auto iterm : net->getITerms()) {
-  //       ofs << "  Instance: " << iterm->getInst()->getName()
-  //           << ", Pin: " << iterm->getMTerm()->getName() << "\n";
-  //     }
-
-  //     // Print BTerms information
-  //     ofs << "BTerms:\n";
-  //     for (auto bterm : net->getBTerms()) {
-  //       ofs << "  BTerm: " << bterm->getName()
-  //           << " Block:  " << bterm->getBlock()->getName() << "\n";
-  //     }
-  //   }
-
   // Print module information
   for (auto mod_inst : _block->getModules()) {
     ofs << "Module name: " << mod_inst->getName() << "\n";
@@ -137,6 +304,10 @@ bool ChipletModuleWrapper::initModuleGroups(
     std::vector<std::vector<std::string>>& combination,
     std::vector<std::vector<std::string>>& abort)
 {
+  // Initialize the module groups with combination and abort
+  _logger->report("Initializing module groups, {} combinations and {} aborts",
+                  combination.size(),
+                  abort.size());
   // Initialize _module_groups based on some logic involving combination and
   // abort Method: create a module group for each combination, and add the
   // instances pointers
@@ -146,19 +317,10 @@ bool ChipletModuleWrapper::initModuleGroups(
     _logger->report("No combination found");
     return true;
   }
-
   if (combination_size != abort_size) {
     _logger->report("The number of combination and abort is not equal");
     return false;
   }
-  //for debug
-// std::cout << "Combination size: " << combination.size() << std::endl;
-// for (size_t i = 0; i < combination.size(); ++i) {
-//     std::cout << "Combination " << i << " size: " << combination[i].size() << std::endl;
-// }
-
-
-
   // Add "top/" prefix to all elements in combination and abort vectors
   for (auto& comb : combination) {
     for (auto& module_name : comb) {
@@ -167,14 +329,12 @@ bool ChipletModuleWrapper::initModuleGroups(
                 << std::endl;
     }
   }
-
   for (auto& ab : abort) {
     for (auto& module_name : ab) {
       module_name = "top/" + module_name;
       std::cout << "Abort module name updated to: " << module_name << std::endl;
     }
   }
-
   for (size_t i = 0; i < combination_size; i++) {
     std::string wrapped_module_name = fmt::format("wrapped_{}", i);
     std::shared_ptr<ModuleConstraintGroup> module_group
@@ -195,7 +355,6 @@ bool ChipletModuleWrapper::initModuleGroups(
         return false;
       }
     }
-
     // Add instances to the module group, skipping those in the abort list
     for (const auto& module_name : combination[i]) {
       auto combination_module_name = module_name;
@@ -223,7 +382,6 @@ bool ChipletModuleWrapper::initModuleGroups(
     }
     _module_groups.insert(module_group);
   }
-
   return true;
 }
 
@@ -231,28 +389,42 @@ void ChipletModuleWrapper::wrapModule(
     std::shared_ptr<ModuleConstraintGroup> module_group)
 {
   _logger->report("Wrapping module group: {}", module_group->getName());
-  module_group->createBlock(_block, _logger);
+  module_group->createBlock(_block);
 }
 
 void ChipletModuleWrapper::unwrapModule(
     std::shared_ptr<ModuleConstraintGroup> module_group)
 {
-  //   // Add instances back to the block
-  //   for (auto& inst : module_group->insts) {
-  //     _block->addInst(inst);
-  //   }
-
-  //   // Remove the wrapper instance
-  //   _block->removeInst(module_group->wrapper_inst);
-  //   module_group->wrapper_inst = nullptr;
+  _logger->report("Unwrapping module group: {}", module_group->getName());
+  module_group->collapseBlock(module_group->getWrappedInst());
 }
 
-void ChipletModuleWrapper::run()
+void ChipletModuleWrapper::runWrap(
+    std::vector<std::vector<std::string>>& combination,
+    std::vector<std::vector<std::string>>& abort)
 {
+  if (initModuleGroups(combination, abort)) {
+    _logger->report("Module groups initialized, {} groups created",
+                    _module_groups.size());
+  } else {
+    _logger->report("Failed to initialize module groups");
+  }
   // Run the wrapping and unwrapping process
   for (auto& module_group : _module_groups) {
     wrapModule(module_group);
   }
+}
+
+void ChipletModuleWrapper::runUnwrap()
+{
+  _logger->report("Unwrapping all module groups");
+  for (auto& module_group : _module_groups) {
+    unwrapModule(module_group);
+  }
+}
+
+void ChipletModuleWrapper::Test()
+{
 }
 
 ChipletRegionCreater::ChipletRegionCreater(odb::dbDatabase* db,
@@ -318,13 +490,13 @@ void ChipletRegionCreater::printRegionInfo(odb::dbRegion* region,
   ofs << "Instances:\n";
   for (auto group : region->getGroups()) {
     for (auto inst : group->getInsts()) {
-          ofs << " - Instance name: " << inst->getName() << "\n";
-    ofs << " - Master name: " << inst->getMaster()->getName() << "\n";
-    ofs << " - Instance location: " << inst->getLocation().getX() << " x "
-        << inst->getLocation().getY() << "\n";
-    if (inst->isBlock()) {
-      ofs << "  IsBlock\n";
-    }
+      ofs << " - Instance name: " << inst->getName() << "\n";
+      ofs << " - Master name: " << inst->getMaster()->getName() << "\n";
+      ofs << " - Instance location: " << inst->getLocation().getX() << " x "
+          << inst->getLocation().getY() << "\n";
+      if (inst->isBlock()) {
+        ofs << "  IsBlock\n";
+      }
     }
   }
   ofs.close();

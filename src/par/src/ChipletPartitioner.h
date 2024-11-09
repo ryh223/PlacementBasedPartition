@@ -1,10 +1,10 @@
 #pragma once
-
 #include <string>
 #include <vector>
+
+#include "SlicingTree.h"
 #include "odb/db.h"
 #include "utl/Logger.h"
-#include "SlicingTree.h"
 
 #define TEMPRAURE0 100
 #define FREEZE_TEMPERATURE 10
@@ -12,73 +12,102 @@
 #define ALPHA 0.9
 
 namespace par {
-    
+
 typedef std::pair<double, double> aspect_ratio;
 typedef std::pair<std::pair<double, double>, std::pair<double, double>> core_box;
 
-class Chiplet{
-    public:
-        std::string name;
-        std::vector<odb::dbInst*> instances;
-        double width;
-        double height;
-        std::pair<double, double> location;
-        utilization utilization_constaint;
-
-    public:
-        double getAspect_ratio() const { return height / width; }
-        double getArea() const { return width * height; }
+class Chiplet
+{
+ public:
+  std::string name;
+  std::set<odb::dbInst*> instances;
+  double width;
+  double height;
+  std::pair<double, double> location;
+  utilization utilization_constaint;
+  double inst_area;
+ public:
+  double getAspect_ratio() const { return height / width; }
+  double getArea() const { return width * height; }
+  // this method will calculate the overlap area of the instance with the
+  // chiplet over the total area of the instance  to see how likely the instance
+  // will be placed in the chiplet
+  double getOverlapRatio(odb::dbInst* inst);
+  // this method  will calculate the utilization for the current partition
+  double getUtilization();
+  bool isInChiplet(odb::dbInst* inst);
 };
 
-class ChipletPartitioner {
-public:
-    static ChipletPartitioner& getInstance(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger) {
-        static ChipletPartitioner instance(db, block, logger);
-        return instance;
+class ChipletPartitioner
+{
+ public:
+  static ChipletPartitioner& getInstance()
+  {
+    static ChipletPartitioner instance;
+    return instance;
+  }
+
+  static void deleteInstance()
+  {
+    ChipletPartitioner& instance = getInstance();
+    delete &instance;
+  }
+
+    void init(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger)
+    {
+        _db = db;
+        _block = block;
+        _logger = logger;
     }
 
-    static void deleteInstance() {
-        ChipletPartitioner& instance = getInstance(nullptr, nullptr, nullptr);
-        delete &instance;
-    }
+ private:
+  ChipletPartitioner(const ChipletPartitioner&) = delete;
+  ChipletPartitioner& operator=(const ChipletPartitioner&) = delete;
 
-private:
-    ChipletPartitioner(const ChipletPartitioner&) = delete;
-    ChipletPartitioner& operator=(const ChipletPartitioner&) = delete;
+  ChipletPartitioner() = default;
+  ChipletPartitioner(odb::dbDatabase* db,
+                     odb::dbBlock* block,
+                     utl::Logger* logger)
+      : _db(db), _block(block), _logger(logger)
+  {
+  }
 
-    ChipletPartitioner(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger)
-        : _db(db), _block(block), _logger(logger) {}
+  ~ChipletPartitioner() {}
 
-    ~ChipletPartitioner() {}
+  void updateInsts(std::vector<Chiplet>& chiplet_boxes);
 
-    
+ public:
+  void initPhisicalConstraints(const std::string& physical_constraint_filename);
 
-public:
-    void initPhisicalConstraints(const std::string& physical_constraint_filename);
+  void initModuleConstraints(const std::string& partition_constraint_filename);
 
-    void initModuleConstraints(const std::string& partition_constraint_filename);
+  void run_partition(double temp = TEMPRAURE0,
+                     double freeze_temp = FREEZE_TEMPERATURE,
+                     int step = STEP,
+                     double alpha = ALPHA);
 
-    void run_partition(double temp = TEMPRAURE0, double freeze_temp = FREEZE_TEMPERATURE, int step = STEP, double alpha = ALPHA);
+  core_box _core_box;
+  long int _chiplet_area;
+  int _num_chiplets;
+  std::vector<utilization> _chiplet_utilization;
+  std::vector<aspect_ratio> _chiplet_aspect_ratio;
 
-    
+  odb::dbDatabase* _db;
+  odb::dbBlock* _block;
+  utl::Logger* _logger;
 
-private:
-    core_box _core_box;
-    long int _chiplet_area;
-    int _num_chiplets;
-    std::vector<utilization> _chiplet_utilization;
-    std::vector<aspect_ratio> _chiplet_aspect_ratio;
-
-    odb::dbDatabase* _db;
-    odb::dbBlock* _block;
-    utl::Logger* _logger;
-
-    std::vector<ChipletBlock> initChipletBlocks();
-    void run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree slicing_tree);
-    double evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
-    double calculateScore(std::vector<Chiplet>& chiplet_boxes);
-
-    // std::vector<type>  <module, vitual_macro>
+  std::vector<ChipletBlock> initChipletBlocks();
+  void run_simulated_annealing(int temp,
+                               int freeze_temp,
+                               int step,
+                               double alpha,
+                               SlicingTree* slicing_tree);
+  double evaluate(SlicingTree* slicing_tree,
+                  std::vector<Chiplet>& chiplet_boxes);
+  double calculateScore(std::vector<Chiplet>& chiplet_boxes);
+  void fineShape(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
+  void addBlockage(std::vector<Chiplet>& chiplet_boxes);
+  void resetMacro();
 };
 
 }  // namespace par

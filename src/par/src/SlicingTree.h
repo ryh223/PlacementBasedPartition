@@ -43,7 +43,7 @@ class ChipletBlock{
         ChipletBlock() {}
 
         ChipletBlock(std::string n): name(n) {}
-    
+        ~ChipletBlock() {}
         ChipletBlock(std::string n, double area, double min_ratio, double max_ratio, size_t shapes_num, utilization _utilization): name(n), min_orientation_ratio(min_ratio), max_orientation_ratio(max_ratio), shapes_index(0), utilaization_constaint(_utilization) {
             if(shapes_num < 3) {
                 std::cerr << "Error: shapes_num should be greater than 2" << std::endl;
@@ -77,13 +77,41 @@ class SlicingTree{
 
         SlicingTree(double w, double h, std::vector<ChipletBlock>);
 
+        //refactor equal sign as a deep copy
+        SlicingTree& operator=(const SlicingTree& other) {
+            if (this == &other) {
+                return *this;
+            }
+
+            // Clear existing blocks
+            for (auto block : blocks) {
+                delete block;
+            }
+            blocks.clear();
+
+            // Copy width_height_constaints
+            width_height_constaints = other.width_height_constaints;
+
+            // Deep copy blocks
+            for(auto& block: other.blocks){
+                ChipletBlock* new_block = new ChipletBlock();
+                *new_block = *block;
+                this->blocks.push_back(new_block);
+            }
+            updatePointers();
+
+            return *this;
+        }
+
+        // SlicingTree(const SlicingTree& other);
+
         ~SlicingTree();
 
         void makeMove();
 
         void refresh();
 
-        std::vector<Chiplet> genetateSolution(size_t wh_index);
+        std::vector<Chiplet> genetateSolution(size_t wh_index, double x_core, double y_core);
 
     private:
         bool isValid();

@@ -23,9 +23,22 @@ SlicingTree::SlicingTree(double w, double h, std::vector<ChipletBlock> blocks): 
     _init();
 }
 
-SlicingTree::~SlicingTree() {
-    for(auto& block: blocks) {
-        delete block;
+// SlicingTree::SlicingTree(const SlicingTree& other){
+//     width_height_constaints = other.width_height_constaints;
+//     for(auto& block: other.blocks){
+//         ChipletBlock* new_block = new ChipletBlock();
+//         *new_block = *block;
+//         this->blocks.push_back(new_block);
+//     }
+//     updatePointers();
+// }
+
+SlicingTree::~SlicingTree()
+{
+    for (auto& block : blocks) {
+        if (block != nullptr)
+            delete block;
+        block = nullptr;
     }
 }
 
@@ -217,7 +230,7 @@ void SlicingTree::updateScore(ChipletBlock* block){
     }
 }
 
-std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
+std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index, double x_core, double y_core){
     std::vector<Chiplet> solution;
     ChipletBlock *root = blocks[blocks.size() - 1];
     root->x_coordination = 0; 
@@ -298,7 +311,9 @@ std::vector<Chiplet> SlicingTree::genetateSolution(size_t wh_index){
         chiplet.width *= x_adapt_ratio;
         chiplet.height *= y_adapt_ratio;
         chiplet.location.first *= x_adapt_ratio;
+        chiplet.location.first += x_core;
         chiplet.location.second *= y_adapt_ratio;
+        chiplet.location.second += y_core;
     }
     return solution;
 }
