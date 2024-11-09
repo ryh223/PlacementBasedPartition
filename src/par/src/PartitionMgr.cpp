@@ -923,7 +923,8 @@ void PartitionMgr::readConstraintFile(const std::string& physical_constraint_fil
   std::cout << "physical_constraint_filename: " << physical_constraint_filename << std::endl;
   std::cout << "partition_constraint_filename: " << partition_constraint_filename << std::endl;
   odb::dbBlock* block = db_->getChip()->getBlock();
-  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance();
+  chipletPartitioner.init(db_, block, logger_);
   //parse physical constraint file
   chipletPartitioner.initPhisicalConstraints(physical_constraint_filename);
   
@@ -947,11 +948,11 @@ bool PartitionMgr::printDesignInfo() {
 void PartitionMgr::checkRegionInfo() {
   odb::dbBlock* block = db_->getChip()->getBlock();
   par::ChipletRegionCreater* region_creater = new par::ChipletRegionCreater(db_, block, logger_);
-  odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/_41424_");
+  odb::dbInst* test_inst = block->findInst("me/genblk1_0__bp_cce_top/bp_cce/pc_inst_ram/cce_inst_ram/macro_mem/mem");
   std::set<odb::dbInst*> insts;
   insts.insert(test_inst);
   odb::dbGroup* test_group = region_creater->createGroup("test_group", insts);
-  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 980000, 990000, 900000, 910000);
+  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 1040000, 1500000);
 
   std::cout << "PartitionMgr::print_region_info" << std::endl;
   auto regions = block->getRegions();
@@ -964,13 +965,13 @@ void PartitionMgr::checkRegionInfo() {
 
 void PartitionMgr::regionPartitionTest() {
   odb::dbBlock* block = db_->getChip()->getBlock();
-  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance();
   chipletPartitioner.run_partition();
 }
 
 void PartitionMgr::runPartition(double temp, double freeze_temp, int step, double alpha) {
   odb::dbBlock* block = db_->getChip()->getBlock();
-  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance(db_, block, logger_);
+  ChipletPartitioner& chipletPartitioner = ChipletPartitioner::getInstance();
   chipletPartitioner.run_partition(temp, freeze_temp, step, alpha);
 }
 
