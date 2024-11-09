@@ -502,6 +502,7 @@ void MacroPlacer::updateDbInstLocations()
   const int dbu = tech->getDbUnitsPerMicron();
 
   for (auto& macro : macros_) {
+    // logger_->report("Status {}, Macro {} at ({}, {}).", macro.dbInstPtr->getPlacementStatus(), macro.dbInstPtr->getName(), macro.lx, macro.ly);
     macro.dbInstPtr->setLocation(round(macro.lx * dbu), round(macro.ly * dbu));
     macro.dbInstPtr->setPlacementStatus(odb::dbPlacementStatus::LOCKED);
   }

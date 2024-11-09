@@ -134,15 +134,15 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
   for(Chiplet& chiplet : best_solition){
     _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
   }
-  // updateInsts(best_solition);
-  // addBlockage(best_solition);
+  updateInsts(best_solition);
+  addBlockage(best_solition);
   resetMacro();
 }
 
 void ChipletPartitioner::resetMacro(){
-  odb::dbSet<odb::dbInst> insts = _block->getInsts();
-  for (odb::dbInst* inst : insts) {
+  for (odb::dbInst* inst : _block->getInsts()) {
     if (inst->getMaster()->isBlock()) {
+      _logger->report("reset macro: {}", inst->getName());
       inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
     }
   }
@@ -224,19 +224,27 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   }
   // Unwrap the wrapper module and update the chiplet boxes
   ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
-  chiplet_module_wrapper.runUnwrap();
+  std::map<std::string, int> wrapper_inst_partition;
   // update the chiplet_boxes
   for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
     // find if the wrapper inst is in chiplet then add the instances to the chiplet
     odb::dbInst* wrapper_inst = wrapper_group->getWrappedInst();
-    for(auto& chiplet : chiplet_boxes){
+    for(size_t i = 0; i < num_chiplets; i++){
+      auto& chiplet = chiplet_boxes[i];
       if(chiplet.instances.find(wrapper_inst) != chiplet.instances.end()){
+        _logger->report("wrapper inst: {} is in chiplet: {}", wrapper_inst->getName(), chiplet.name);
         // delete the wrapper inst
         chiplet.instances.erase(wrapper_inst);
-        for(auto inst : wrapper_group->getInsts()){
-          chiplet.instances.insert(inst);
-        }
+        wrapper_inst_partition[wrapper_group->getName()] = i;
       }
+    }
+  }
+  chiplet_module_wrapper.runUnwrap();
+  // update the chiplet boxes
+  for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
+    int partition = wrapper_inst_partition[wrapper_group->getName()];
+    for(auto inst : wrapper_group->getInsts()){
+      chiplet_boxes[partition].instances.insert(inst);
     }
   }
   // update regions

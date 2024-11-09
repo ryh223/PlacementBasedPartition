@@ -10,6 +10,7 @@ namespace par {
 bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
 {
   // reccreate the insts in the top block and recreate the connection
+  std::cout << "Collapsing " << wrapped_inst_->getName() << std::endl;
   wrapped_inst_ = block_inst;
   // old insts map to new insts
   std::map<odb::dbInst*, odb::dbInst*> old_new_insts_map;
@@ -60,7 +61,6 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
   odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
   odb::dbInst::destroy(wrapped_inst_);
   odb::dbMaster::destroy(wrapped_inst_master);
-  wrapped_inst_ = nullptr;
   return true;
 }
 
