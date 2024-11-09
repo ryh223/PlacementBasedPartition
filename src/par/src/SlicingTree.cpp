@@ -23,6 +23,16 @@ SlicingTree::SlicingTree(double w, double h, std::vector<ChipletBlock> blocks): 
     _init();
 }
 
+// SlicingTree::SlicingTree(const SlicingTree& other){
+//     width_height_constaints = other.width_height_constaints;
+//     for(auto& block: other.blocks){
+//         ChipletBlock* new_block = new ChipletBlock();
+//         *new_block = *block;
+//         this->blocks.push_back(new_block);
+//     }
+//     updatePointers();
+// }
+
 SlicingTree::~SlicingTree()
 {
     for (auto& block : blocks) {

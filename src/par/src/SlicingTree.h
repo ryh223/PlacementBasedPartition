@@ -77,6 +77,34 @@ class SlicingTree{
 
         SlicingTree(double w, double h, std::vector<ChipletBlock>);
 
+        //refactor equal sign as a deep copy
+        SlicingTree& operator=(const SlicingTree& other) {
+            if (this == &other) {
+                return *this;
+            }
+
+            // Clear existing blocks
+            for (auto block : blocks) {
+                delete block;
+            }
+            blocks.clear();
+
+            // Copy width_height_constaints
+            width_height_constaints = other.width_height_constaints;
+
+            // Deep copy blocks
+            for(auto& block: other.blocks){
+                ChipletBlock* new_block = new ChipletBlock();
+                *new_block = *block;
+                this->blocks.push_back(new_block);
+            }
+            updatePointers();
+
+            return *this;
+        }
+
+        // SlicingTree(const SlicingTree& other);
+
         ~SlicingTree();
 
         void makeMove();

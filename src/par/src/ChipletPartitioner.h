@@ -41,24 +41,30 @@ class Chiplet
 class ChipletPartitioner
 {
  public:
-  static ChipletPartitioner& getInstance(odb::dbDatabase* db,
-                                         odb::dbBlock* block,
-                                         utl::Logger* logger)
+  static ChipletPartitioner& getInstance()
   {
-    static ChipletPartitioner instance(db, block, logger);
+    static ChipletPartitioner instance;
     return instance;
   }
 
   static void deleteInstance()
   {
-    ChipletPartitioner& instance = getInstance(nullptr, nullptr, nullptr);
+    ChipletPartitioner& instance = getInstance();
     delete &instance;
   }
+
+    void init(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger)
+    {
+        _db = db;
+        _block = block;
+        _logger = logger;
+    }
 
  private:
   ChipletPartitioner(const ChipletPartitioner&) = delete;
   ChipletPartitioner& operator=(const ChipletPartitioner&) = delete;
 
+  ChipletPartitioner() = default;
   ChipletPartitioner(odb::dbDatabase* db,
                      odb::dbBlock* block,
                      utl::Logger* logger)
@@ -95,7 +101,7 @@ class ChipletPartitioner
                                int freeze_temp,
                                int step,
                                double alpha,
-                               SlicingTree slicing_tree);
+                               SlicingTree* slicing_tree);
   double evaluate(SlicingTree* slicing_tree,
                   std::vector<Chiplet>& chiplet_boxes);
   double calculateScore(std::vector<Chiplet>& chiplet_boxes);

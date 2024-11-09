@@ -75,7 +75,7 @@ void ChipletPartitioner::run_partition(double temp, double freeze_temp, int step
   // }
   std::vector<ChipletBlock> blocks = initChipletBlocks();
   SlicingTree* slicing_tree = new SlicingTree(_core_box.second.first - _core_box.first.first, _core_box.second.second - _core_box.first.second, blocks);
-  run_simulated_annealing(temp, freeze_temp, step, alpha, *slicing_tree);
+  run_simulated_annealing(temp, freeze_temp, step, alpha, slicing_tree);
 }
 
 std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
@@ -89,10 +89,11 @@ std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
   return blocks;
 }
 
-void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree slicing_tree)
+void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree* slicing_tree)
 {
   //minimize score
-  SlicingTree current_tree = slicing_tree;
+  // SlicingTree current_tree = SlicingTree(*slicing_tree);
+  SlicingTree current_tree = *slicing_tree;
   std::cout << "current_tree: " << current_tree.blocks[0]->name << std::endl;
   std::vector<Chiplet> current_solution;
   double current_score = evaluate(&current_tree, current_solution);
@@ -127,9 +128,9 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
         }
       } 
 
-      if(!accept){
-        current_tree.refresh();
-      }
+      // if(!accept){
+      //   current_tree.refresh();
+      // }
       temp *= alpha;
     }
   }
