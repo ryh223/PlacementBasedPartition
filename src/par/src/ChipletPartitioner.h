@@ -107,6 +107,7 @@ class ChipletPartitioner
   double calculateScore(std::vector<Chiplet>& chiplet_boxes);
   void fineShape(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
   void addBlockage(std::vector<Chiplet>& chiplet_boxes);
+  void resetMacro();
 };
 
 }  // namespace par
