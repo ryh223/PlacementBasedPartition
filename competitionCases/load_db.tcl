@@ -2,7 +2,7 @@
 # check if pwd have case1.odb
 set tech_lef "pdk/lef/NangateOpenCellLibrary.tech.lef"
 set std_lef "pdk/lef/NangateOpenCellLibrary.macro.mod.lef"
-set case "case2"
+set case "case1"
 set lefs "
     pdk/lef/fakeram45_32x64.lef \
     pdk/lef/fakeram45_64x7.lef \

@@ -20,15 +20,15 @@ class Chiplet
 {
  public:
   std::string name;
-  std::vector<odb::dbInst*> instances;
-  double width;
-  double height;
-  std::pair<double, double> location;
+  std::set<odb::dbInst*> instances;
+  odb::uint width;
+  odb::uint height;
+  std::pair<odb::uint, odb::uint> location;
   utilization utilization_constaint;
-
+  odb::uint inst_area;
  public:
-  double getAspect_ratio() const { return height / width; }
-  double getArea() const { return width * height; }
+  double getAspect_ratio() const { return double(height) / width; }
+  double getArea() const { return double(width * height); }
   // this method will calculate the overlap area of the instance with the
   // chiplet over the total area of the instance  to see how likely the instance
   // will be placed in the chiplet
@@ -66,6 +66,8 @@ class ChipletPartitioner
   }
 
   ~ChipletPartitioner() {}
+
+  void updateInsts(std::vector<Chiplet>& chiplet_boxes);
 
  public:
   void initPhisicalConstraints(const std::string& physical_constraint_filename);

@@ -43,7 +43,7 @@ class ChipletBlock{
         ChipletBlock() {}
 
         ChipletBlock(std::string n): name(n) {}
-    
+        ~ChipletBlock() {}
         ChipletBlock(std::string n, double area, double min_ratio, double max_ratio, size_t shapes_num, utilization _utilization): name(n), min_orientation_ratio(min_ratio), max_orientation_ratio(max_ratio), shapes_index(0), utilaization_constaint(_utilization) {
             if(shapes_num < 3) {
                 std::cerr << "Error: shapes_num should be greater than 2" << std::endl;
@@ -83,7 +83,7 @@ class SlicingTree{
 
         void refresh();
 
-        std::vector<Chiplet> genetateSolution(size_t wh_index);
+        std::vector<Chiplet> genetateSolution(size_t wh_index, double x_core, double y_core);
 
     private:
         bool isValid();

@@ -135,13 +135,17 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
       temp *= alpha;
     }
   }
+  for(Chiplet& chiplet : best_solition){
+    std::cout << "chiplet: " << chiplet.name << chiplet.location.first << " " << chiplet.location.second << " " << chiplet.width << " " << chiplet.height << std::endl;
+  }
+  updateInsts(best_solition);
 }
 
 double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes)
 {
   double best_score = std::numeric_limits<double>::max();
   for(int i = 0; i < slicing_tree->blocks.back()->shapes.size(); i++){
-    std::vector<Chiplet> solution = slicing_tree->genetateSolution(i);
+    std::vector<Chiplet> solution = slicing_tree->genetateSolution(i, _core_box.first.first, _core_box.first.second);
     if(solution.size() > 0){
       double score = calculateScore(solution);
       if(score < best_score){
@@ -153,6 +157,26 @@ double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chipl
   return best_score;
 }
 
+void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
+  size_t num_chiplets = chiplet_boxes.size();
+  std::vector<odb::uint> chiplet_insts_areas(num_chiplets, 0);
+  for (auto inst : _block->getInsts()) {
+    // divide instances into different chiplet boxes and then calculate the
+    // score
+    double max_overlap = 0;
+    size_t max_overlap_idx = 0;
+    for (size_t i = 0; i < num_chiplets; i++) {
+      auto& chiplet = chiplet_boxes[i];
+      double overlap = chiplet.getOverlapRatio(inst);
+      if (overlap > max_overlap) {
+        max_overlap = overlap;
+        max_overlap_idx = i;
+      }
+    }
+    chiplet_boxes[max_overlap_idx].instances.insert(inst);
+  }
+}
+
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
@@ -162,22 +186,39 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
   // 1. for each macro, calculate the max overlap ratio with chiplet partition
+  size_t num_chiplets = chiplet_boxes.size();
+  std::vector<odb::uint> chiplet_insts_areas(num_chiplets, 0);
   for (auto inst : _block->getInsts()) {
-    if (inst->getMaster()->isBlock()) {
-      int max_overlap = 0;
-      for (auto chiplet : chiplet_boxes) {
-        int overlap = chiplet.getOverlapRatio(inst);
-        if (overlap > max_overlap) {
-          max_overlap = overlap;
-        }
+    // divide instances into different chiplet boxes and then calculate the
+    // score
+    double max_overlap = 0;
+    size_t max_overlap_idx = 0;
+    for (size_t i = 0; i < num_chiplets; i++) {
+      auto& chiplet = chiplet_boxes[i];
+      double overlap = chiplet.getOverlapRatio(inst);
+      if (overlap > max_overlap) {
+        max_overlap = overlap;
+        max_overlap_idx = i;
       }
-      score += alpha * max_overlap;
+    }
+    chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+    if(inst->getMaster()->isBlock()){
+      score += alpha * std::abs(1 - max_overlap);
     }
   }
-  // 2. for each chiplet partiton calculate the utilization ratio
-  for (auto chiplet : chiplet_boxes) {
-    float utilization = chiplet.getUtilization();
-    score += beta * utilization;
+  // 2. for each chiplet partition calculate the utilization ratio
+  for (size_t i = 0; i < num_chiplets; i++) {
+    auto& chiplet = chiplet_boxes[i];
+    chiplet.inst_area = chiplet_insts_areas[i];
+    double utilization = chiplet.getUtilization();
+    double utilization_min = _chiplet_utilization[i].first;
+    double utilization_max = _chiplet_utilization[i].second;
+    // Penalize if utilization is outside the specified range
+    if (utilization < utilization_min) {
+      score += beta * (utilization_min - utilization);
+    } else if (utilization > utilization_max) {
+      score += beta * (utilization - utilization_max);
+    }
   }
   return score;
 }
@@ -214,12 +255,7 @@ double Chiplet::getOverlapRatio(odb::dbInst* inst)
 // this method  will calculate the utilization for the current partition
 double Chiplet::getUtilization()
 {
-  odb::uint total_area = 0;
-  for (odb::dbInst* inst : instances) {
-    odb::uint inst_area = inst->getMaster()->getArea();
-    total_area += inst_area;
-  }
-  return total_area / (width * height);
+  return inst_area / getArea();
 }
 
 }  // namespace par
