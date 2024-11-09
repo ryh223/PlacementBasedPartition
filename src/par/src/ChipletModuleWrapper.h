@@ -57,9 +57,9 @@ class ModuleConstraintGroup
   odb::dbBlock* child_block_{nullptr};
   std::set<odb::dbInst*> insts_;
   std::string block_name_;
-  odb::uint width_{0};
-  odb::uint height_{0};
-  odb::uint area_{0};
+  long long int width_{0};
+  long long int height_{0};
+  long long int area_{0};
 
  public:
   /**
@@ -123,9 +123,9 @@ class ModuleConstraintGroup
     DEBUG_PRINT("Removed instance: " << inst->getName());
   }
   odb::dbInst* getWrappedInst() { return wrapped_inst_; }
-  odb::uint getWidth() { return width_; }
-  odb::uint getHeight() { return height_; }
-  odb::uint getArea() { return area_; }
+  long long int getWidth() { return width_; }
+  long long int getHeight() { return height_; }
+  long long int getArea() { return area_; }
 
   /**
    * @brief Create a child block and move instances to it.

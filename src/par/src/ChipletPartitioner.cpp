@@ -244,6 +244,7 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
     int partition = wrapper_inst_partition[wrapper_group->getName()];
     for(auto inst : wrapper_group->getInsts()){
+      inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
       chiplet_boxes[partition].instances.insert(inst);
     }
   }

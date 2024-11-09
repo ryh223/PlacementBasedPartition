@@ -211,14 +211,13 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
   for (auto mterm : wrapped_inst_master->getMTerms()) {
     // dbBox* dbBox::create(dbMPin* pin_, dbTechLayer* layer_, int x1, int y1,
     // int x2, int y2)
-    for (auto pin : mterm->getMPins()) {
-      odb::dbBox::create(pin,
+    odb::dbMPin* pin = odb::dbMPin::create(mterm);
+    odb::dbBox::create(pin,
                          pinlayer,
                          width_ / 2 - mpin_halo,
                          height_ / 2 - mpin_halo,
                          width_ / 2 + mpin_halo,
                          height_ / 2 + mpin_halo);
-    }
   }
   DEBUG_PRINT("Wrapper instance bounding box created successfully\n");
   return true;
