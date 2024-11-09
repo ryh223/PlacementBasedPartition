@@ -45,15 +45,21 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
   }
   // reconnect the inner nets in child block to recovered insts
   for (auto net : child_block_->getNets()) {
+    odb::dbNet* new_net = odb::dbNet::create(top_block, net->getName().c_str());
     for (auto iterm : net->getITerms()) {
       auto mterm = iterm->getMTerm();
       auto originst = iterm->getInst();
-      old_new_insts_map[originst]->getITerm(mterm)->connect(net);
+      old_new_insts_map[originst]->getITerm(mterm)->connect(new_net);
     }
+    odb::dbNet::destroy(net);
   }
+  // for (auto inst : child_block_->getInsts()) {
+  //   odb::dbInst::destroy(inst);
+  // }
   odb::dbBlock::destroy(child_block_);
-  odb::dbMaster::destroy(wrapped_inst_->getMaster());
+  odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
   odb::dbInst::destroy(wrapped_inst_);
+  odb::dbMaster::destroy(wrapped_inst_master);
   wrapped_inst_ = nullptr;
   return true;
 }
