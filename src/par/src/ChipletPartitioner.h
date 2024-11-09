@@ -21,14 +21,14 @@ class Chiplet
  public:
   std::string name;
   std::set<odb::dbInst*> instances;
-  odb::uint width;
-  odb::uint height;
-  std::pair<odb::uint, odb::uint> location;
+  double width;
+  double height;
+  std::pair<double, double> location;
   utilization utilization_constaint;
-  odb::uint inst_area;
+  double inst_area;
  public:
-  double getAspect_ratio() const { return double(height) / width; }
-  double getArea() const { return double(width * height); }
+  double getAspect_ratio() const { return height / width; }
+  double getArea() const { return width * height; }
   // this method will calculate the overlap area of the instance with the
   // chiplet over the total area of the instance  to see how likely the instance
   // will be placed in the chiplet

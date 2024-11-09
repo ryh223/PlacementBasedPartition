@@ -110,9 +110,7 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
       double new_score = evaluate(&new_tree, current_solution);
       double delta = new_score - current_score;
 
-      bool accept = false;
       if (delta < 0) {
-        accept = true;
         current_score = new_score;
         current_tree = new_tree;
         if (new_score < best_score) {
@@ -122,7 +120,6 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
       } else {
         double prob = exp(-delta / temp);
         if (rand() / RAND_MAX < prob) {
-          accept = true;
           current_score = new_score;
           current_tree = new_tree;
         }
@@ -150,7 +147,7 @@ double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chipl
       double score = calculateScore(solution);
       if(score < best_score){
         best_score = score;
-        fineShape(slicing_tree, solution);
+        // fineShape(slicing_tree, solution);
         chiplet_boxes = solution;
       }
     }
@@ -308,26 +305,26 @@ double Chiplet::getOverlapRatio(odb::dbInst* inst)
 {
   int inst_x, inst_y;
   inst->getLocation(inst_x, inst_y);
-  odb::uint inst_width = inst->getMaster()->getWidth();
-  odb::uint inst_height = inst->getMaster()->getHeight();
-  odb::uint inst_area = inst->getMaster()->getArea(); 
+  double inst_width = inst->getMaster()->getWidth();
+  double inst_height = inst->getMaster()->getHeight();
+  double inst_area = inst->getMaster()->getArea(); 
   int chiplet_x, chiplet_y;
   chiplet_x = location.first;
   chiplet_y = location.second;
-  odb::uint chiplet_width = width;
-  odb::uint chiplet_height = height;
-  odb::uint overlap = 0;
+  double chiplet_width = width;
+  double chiplet_height = height;
+  double overlap = 0;
 
   // inst and chiplet
   if (inst_x + inst_width > chiplet_x && inst_x < chiplet_x + chiplet_width &&
       inst_y + inst_height > chiplet_y && inst_y < chiplet_y + chiplet_height) {
-    int overlap_x = std::min(inst_x + inst_width, chiplet_x + chiplet_width) -
+    double overlap_x = std::min(inst_x + inst_width, chiplet_x + chiplet_width) -
                     std::max(inst_x, chiplet_x);
-    int overlap_y = std::min(inst_y + inst_height, chiplet_y + chiplet_height) -
+    double overlap_y = std::min(inst_y + inst_height, chiplet_y + chiplet_height) -
                     std::max(inst_y, chiplet_y);
     overlap = overlap_x * overlap_y;
   }
-  return double(overlap) / inst_area;
+  return overlap / inst_area;
 }
 
 // this method  will calculate the utilization for the current partition
