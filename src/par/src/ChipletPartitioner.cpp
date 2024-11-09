@@ -181,23 +181,57 @@ void ChipletPartitioner::addBlockage(std::vector<Chiplet>& chiplet_boxes){
 void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   size_t num_chiplets = chiplet_boxes.size();
   std::vector<odb::uint> chiplet_insts_areas(num_chiplets, 0);
+  // clear instances in the chiplet boxes
+  for(auto& chiplet : chiplet_boxes){
+    chiplet.instances.clear();
+  }
+  // divide instances into different chiplet boxes
   for (auto inst : _block->getInsts()) {
-    // divide instances into different chiplet boxes and then calculate the
-    // score
-    double max_overlap = 0;
     size_t max_overlap_idx = 0;
-    for (size_t i = 0; i < num_chiplets; i++) {
-      auto& chiplet = chiplet_boxes[i];
-      double overlap = chiplet.getOverlapRatio(inst);
-      if (overlap > max_overlap) {
-        max_overlap = overlap;
-        max_overlap_idx = i;
+    if (inst->getMaster()->isBlock()) {
+      // divide instances into different chiplet boxes and then calculate the
+      // score
+      double max_overlap = 0;
+      for (size_t i = 0; i < num_chiplets; i++) {
+        auto& chiplet = chiplet_boxes[i];
+        double overlap = chiplet.getOverlapRatio(inst);
+        if (overlap > max_overlap) {
+          max_overlap = overlap;
+          max_overlap_idx = i;
+        }
+      }
+      chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+    }
+    else {
+      // for standard cells, do not consider its area
+      for (size_t i = 0; i < num_chiplets; i++) {
+        auto& chiplet = chiplet_boxes[i];
+        if (chiplet.isInChiplet(inst)) {
+          chiplet_insts_areas[i] += inst->getMaster()->getArea();
+          max_overlap_idx = i;
+          break;
+        }
       }
     }
     chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
+  // Unwrap the wrapper module and update the chiplet boxes
   ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
   chiplet_module_wrapper.runUnwrap();
+  // update the chiplet_boxes
+  for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
+    // find if the wrapper inst is in chiplet then add the instances to the chiplet
+    odb::dbInst* wrapper_inst = wrapper_group->getWrappedInst();
+    for(auto& chiplet : chiplet_boxes){
+      if(chiplet.instances.find(wrapper_inst) != chiplet.instances.end()){
+        // delete the wrapper inst
+        chiplet.instances.erase(wrapper_inst);
+        for(auto inst : wrapper_group->getInsts()){
+          chiplet.instances.insert(inst);
+        }
+      }
+    }
+  }
   // update regions
   std::shared_ptr<ChipletRegionCreater> chiplet_region_creater = std::make_shared<ChipletRegionCreater>(_db, _block, _logger);
   for(auto& chiplet : chiplet_boxes){
