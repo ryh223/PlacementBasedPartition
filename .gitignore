@@ -1,5 +1,5 @@
 # Put tool specific ignores in the tool directory, not here.
-
+build_release/
 *.o
 *.a
 *.lo

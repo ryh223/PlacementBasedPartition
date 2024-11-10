@@ -161,6 +161,7 @@ class ChipletModuleWrapper
   // Initialize the module groups with combination and abort
   bool initModuleGroups(std::vector<std::vector<std::string>>& combination,
                         std::vector<std::vector<std::string>>& abort);
+  bool isIgnoreInst(odb::dbInst* inst);
   bool initModuleGroups(std::set<std::string>& block_names);
   // When the module is wrapped, the insts of the same module will be wrapped
   // into a block, and the wrapper_inst will be created. The insts will be

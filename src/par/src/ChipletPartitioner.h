@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "SlicingTree.h"
+#include "ChipletModuleWrapper.h"
 #include "odb/db.h"
 #include "utl/Logger.h"
 
@@ -106,6 +107,7 @@ class ChipletPartitioner
                   std::vector<Chiplet>& chiplet_boxes);
   double calculateScore(std::vector<Chiplet>& chiplet_boxes);
   void fineShape(SlicingTree* slicing_tree, std::vector<Chiplet>& chiplet_boxes);
+  void chipletCreateRegions(std::vector<Chiplet>& chiplet_boxes, std::shared_ptr<ChipletRegionCreater> chiplet_region_creater);
   void addBlockage(std::vector<Chiplet>& chiplet_boxes);
   void resetMacro();
 };

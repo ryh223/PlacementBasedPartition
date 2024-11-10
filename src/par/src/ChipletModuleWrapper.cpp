@@ -46,7 +46,10 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
   }
   // reconnect the inner nets in child block to recovered insts
   for (auto net : child_block_->getNets()) {
-    odb::dbNet* new_net = odb::dbNet::create(top_block, net->getName().c_str());
+    odb::dbNet* new_net = top_block->findNet(net->getName().c_str());
+    if (!new_net) {
+      new_net = odb::dbNet::create(top_block, net->getName().c_str());
+    }
     for (auto iterm : net->getITerms()) {
       auto mterm = iterm->getMTerm();
       auto originst = iterm->getInst();
@@ -305,6 +308,15 @@ void ChipletModuleWrapper::printDesignInfo(std::string file_name)
   ofs.close();
 }
 
+bool ChipletModuleWrapper::isIgnoreInst(odb::dbInst* inst)
+{
+  auto master = inst->getMaster();
+  if (master->isFiller() || master->isPad() || master->isEndCap() || master->isCover()) {
+    return true;
+  }
+  return false;
+}
+
 bool ChipletModuleWrapper::initModuleGroups(
     std::vector<std::vector<std::string>>& combination,
     std::vector<std::vector<std::string>>& abort)
@@ -345,22 +357,39 @@ bool ChipletModuleWrapper::initModuleGroups(
     std::shared_ptr<ModuleConstraintGroup> module_group
         = std::make_shared<ModuleConstraintGroup>(_block, wrapped_module_name);
     // Mark the insts in the abort list
-    std::unordered_set<odb::dbInst*> abort_insts;
+    std::set<odb::dbModule*> abort_modules;
     for (const auto& module_name : abort[i]) {
       auto abort_module_name = module_name;
       std::replace(
           abort_module_name.begin(), abort_module_name.end(), '/', '.');
       odb::dbModule* db_module = _block->findModule(abort_module_name.c_str());
       if (db_module) {
-        for (odb::dbInst* inst : db_module->getInsts()) {
-          abort_insts.insert(inst);
-        }
+        _logger->report("Module {} found in abort list", abort_module_name);
+        abort_modules.insert(db_module);
       } else {
         _logger->report("Module {} not found in abort list", abort_module_name);
         return false;
       }
     }
+    _logger->report("Size of abort list: {}", abort_modules.size());
     // Add instances to the module group, skipping those in the abort list
+    std::function<void(odb::dbModule*)> addInstsRecursively;
+    // local function to add instances recursively
+    addInstsRecursively = [&](odb::dbModule* db_module) {
+      for (odb::dbModInst* mod_inst : db_module->getChildren()) {
+        odb::dbModule* child_module = mod_inst->getMaster();
+        if (abort_modules.find(child_module) == abort_modules.end()) {
+          addInstsRecursively(child_module);
+        }
+      }
+      for (odb::dbInst* inst : db_module->getInsts()) {
+        if (isIgnoreInst(inst)) {
+          continue;
+        }
+        module_group->addInst(inst);
+      }
+    };
+
     for (const auto& module_name : combination[i]) {
       auto combination_module_name = module_name;
       std::replace(combination_module_name.begin(),
@@ -370,15 +399,9 @@ bool ChipletModuleWrapper::initModuleGroups(
       odb::dbModule* db_module
           = _block->findModule(combination_module_name.c_str());
       if (db_module) {
-        for (odb::dbInst* inst : db_module->getInsts()) {
-          if (abort_insts.find(inst) == abort_insts.end()) {
-            module_group->addInst(inst);
-          } else {
-            _logger->report(
-                "Instance {} is in the abort list and will be skipped",
-                inst->getName());
-          }
-        }
+        _logger->report("Module {} found in combination list",
+                        combination_module_name);
+        addInstsRecursively(db_module);
       } else {
         _logger->report("Module {} not found in combination list",
                         combination_module_name);
@@ -387,6 +410,7 @@ bool ChipletModuleWrapper::initModuleGroups(
     }
     _module_groups.insert(module_group);
   }
+  printModuleInfo("module_info.txt");
   return true;
 }
 
@@ -416,8 +440,9 @@ void ChipletModuleWrapper::runWrap(
   }
   // Run the wrapping and unwrapping process
   for (auto& module_group : _module_groups) {
+     _logger->report("Module group {} size: {}", module_group->getName(), module_group->getInsts().size());
     if (module_group->getInsts().size() == 1 || module_group->getInsts().empty()) {
-      _logger->report("Module group {} skip unwrapping", module_group->getName());
+      _logger->report("Module group {} skip wrapping", module_group->getName());
       continue;
     }
     wrapModule(module_group);
