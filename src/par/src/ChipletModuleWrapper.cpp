@@ -78,7 +78,8 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
                              << " Master: " << master->getName());
     area_ += master->getArea();
   }
-  height_ = width_ = int64_t(sqrt(area_));
+  double untilization = 0.8;
+  height_ = width_ = int64_t(sqrt(area_/untilization));
   DEBUG_PRINT("Total area: " << area_);
   DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
   // get cross nets that connect the insts in the group and the insts outside
@@ -487,9 +488,35 @@ odb::dbGroup* ChipletRegionCreater::createGroup(std::string group_name,
   }
   _logger->report("Group {} created successfully", group_name);
   for (auto inst : insts) {
-    group->addInst(inst);
+    if(inst->getGroup() == nullptr){
+      group->addInst(inst);
+    }
+    else{
+      _logger->report("Instance {} already in group {}", inst->getName(), inst->getGroup()->getName());
+    }
   }
   return group;
+}
+
+odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
+                                                  std::set<odb::dbInst*>& insts,
+                                                  int64_t xMin,
+                                                  int64_t yMin,
+                                                  int64_t xMax,
+                                                  int64_t yMax)
+{
+  odb::dbRegion* region = odb::dbRegion::create(_block, region_name.c_str());
+  // region->setRegionType(odb::dbRegionType::SUGGESTED);
+  if (!region) {
+    _logger->report("Failed to create region: {}", region_name);
+    return nullptr;
+  }
+  odb::dbBox::create(region, xMin, yMin, xMax, yMax);
+  for (auto inst : insts) {
+    region->addInst(inst);
+  }
+  _logger->report("Region {} created successfully", region_name);
+  return region;
 }
 
 odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,

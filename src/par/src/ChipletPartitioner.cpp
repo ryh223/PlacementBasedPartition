@@ -255,14 +255,14 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   }
   // update regions
   std::shared_ptr<ChipletRegionCreater> chiplet_region_creater = std::make_shared<ChipletRegionCreater>(_db, _block, _logger);
-  // chipletCreateRegions(chiplet_boxes, chiplet_region_creater);
+  chipletCreateRegions(chiplet_boxes, chiplet_region_creater);
 }
 
 void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxes, std::shared_ptr<ChipletRegionCreater> chiplet_region_creater)
 {
   for(auto& chiplet : chiplet_boxes){
-    auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
-    // auto region = chiplet_region_creater->createRegion(chiplet.name, group, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    // auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
+    auto region = chiplet_region_creater->createRegion(chiplet.name, chiplet.instances, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
   }
 }
 

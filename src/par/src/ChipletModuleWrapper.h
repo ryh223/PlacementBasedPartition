@@ -150,8 +150,10 @@ class ChipletModuleWrapper
 {
  private:
   ChipletModuleWrapper() = default;
+
  public:
-  static ChipletModuleWrapper& getInstance(){
+  static ChipletModuleWrapper& getInstance()
+  {
     static ChipletModuleWrapper instance;
     return instance;
   }
@@ -171,11 +173,22 @@ class ChipletModuleWrapper
   // and the wrapper_inst will be removed.
   void unwrapModule(std::shared_ptr<ModuleConstraintGroup> module_group);
   void runWrap(std::vector<std::vector<std::string>>& combination,
-    std::vector<std::vector<std::string>>& abort);
+               std::vector<std::vector<std::string>>& abort);
   void runUnwrap();
-  std::set<std::shared_ptr<ModuleConstraintGroup>>& getModuleGroups() { return _module_groups; }
+  std::set<std::shared_ptr<ModuleConstraintGroup>>& getModuleGroups()
+  {
+    return _module_groups;
+  }
   void Test();
-  void setOpenROAD(odb::dbDatabase* db, odb::dbBlock* block, utl::Logger* logger) { _db = db; _block = block; _logger = logger; }
+  void setOpenROAD(odb::dbDatabase* db,
+                   odb::dbBlock* block,
+                   utl::Logger* logger)
+  {
+    _db = db;
+    _block = block;
+    _logger = logger;
+  }
+
  private:
   // a group that contains the dbInsts and the macro they created
   odb::dbDatabase* _db;
@@ -195,6 +208,12 @@ class ChipletRegionCreater
                             std::set<odb::dbInst*>& insts);
   odb::dbRegion* createRegion(std::string region_name,
                               odb::dbGroup* group,
+                              int64_t xMin,
+                              int64_t yMin,
+                              int64_t xMax,
+                              int64_t yMax);
+  odb::dbRegion* createRegion(std::string region_name,
+                              std::set<odb::dbInst*>& insts,
                               int64_t xMin,
                               int64_t yMin,
                               int64_t xMax,
