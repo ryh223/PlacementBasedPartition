@@ -57,10 +57,10 @@ class ModuleConstraintGroup
   odb::dbBlock* child_block_{nullptr};
   std::set<odb::dbInst*> insts_;
   std::string block_name_;
-  long long int width_{0};
-  long long int height_{0};
-  long long int area_{0};
-
+  int64_t width_{0};
+  int64_t height_{0};
+  int64_t std_cell_area_{0};
+  int64_t macro_area_{0};
  public:
   /**
    * @brief Constructor to initialize the ModuleConstraintGroup with a block
@@ -71,19 +71,8 @@ class ModuleConstraintGroup
   ModuleConstraintGroup(odb::dbBlock* top_block, std::string block_name)
   {
     block_name_ = block_name;
-    if (top_block->findInst(block_name.c_str())) {
-      wrapped_inst_ = top_block->findInst(block_name.c_str());
-      child_block_ = wrapped_inst_->getBlock();
-      width_ = wrapped_inst_->getMaster()->getWidth();
-      height_ = wrapped_inst_->getMaster()->getHeight();
-      area_ = width_ * height_;
-      for (auto inst : child_block_->getInsts()) {
-        insts_.insert(inst);
-      }
-    } else {
-      child_block_ = odb::dbBlock::create(top_block, block_name.c_str());
-    }
-    width_ = height_ = area_ = 0;
+    child_block_ = odb::dbBlock::create(top_block, block_name.c_str());
+    width_ = height_ = std_cell_area_ = macro_area_ = 0;
   }
   /**
    * @brief Destructor to clean up resources.
@@ -111,7 +100,7 @@ class ModuleConstraintGroup
   void addInst(odb::dbInst* inst)
   {
     insts_.insert(inst);
-    DEBUG_PRINT("Added instance: " << inst->getName());
+    
   }
   /**
    * @brief Remove an instance from the set.
@@ -123,9 +112,11 @@ class ModuleConstraintGroup
     DEBUG_PRINT("Removed instance: " << inst->getName());
   }
   odb::dbInst* getWrappedInst() { return wrapped_inst_; }
-  long long int getWidth() { return width_; }
-  long long int getHeight() { return height_; }
-  long long int getArea() { return area_; }
+  int64_t getWidth() { return width_; }
+  int64_t getHeight() { return height_; }
+  int64_t getArea() { double util = 0.9; return int64_t(std_cell_area_ / util) + macro_area_; }
+  int64_t getStdCellArea() { return std_cell_area_; }
+  int64_t getMacroArea() { return macro_area_; }
 
   /**
    * @brief Create a child block and move instances to it.
@@ -160,6 +151,14 @@ class ChipletModuleWrapper
   ~ChipletModuleWrapper();
   void printDesignInfo(std::string file_name);
   void printModuleInfo(std::string file_name);
+  std::shared_ptr<ModuleConstraintGroup> findWrapperInst(odb::dbInst* inst){
+    for(std::shared_ptr<ModuleConstraintGroup> module_group : _module_groups){
+      if(module_group->getWrappedInst() == inst){
+        return module_group;
+      }
+    }
+    return std::shared_ptr<ModuleConstraintGroup>();
+  };
   // Initialize the module groups with combination and abort
   bool initModuleGroups(std::vector<std::vector<std::string>>& combination,
                         std::vector<std::vector<std::string>>& abort);

@@ -26,7 +26,7 @@ class Chiplet
   double height;
   std::pair<double, double> location;
   utilization utilization_constaint;
-  double inst_area;
+  double insts_area;
  public:
   double getAspect_ratio() const { return height / width; }
   double getArea() const { return width * height; }

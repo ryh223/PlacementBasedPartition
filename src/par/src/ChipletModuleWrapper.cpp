@@ -70,17 +70,22 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
 bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
 {
   int mpin_halo = 10;
+  // expand the area of standrd cells
   // travel the insts to get the area of the block
   DEBUG_PRINT("Calculating area of the block...");
   for (auto& inst : insts_) {
     odb::dbMaster* master = inst->getMaster();
     DEBUG_PRINT("Instance: " << inst->getName()
                              << " Master: " << master->getName());
-    area_ += master->getArea();
+    if (master->isBlock()) {
+      macro_area_ += master->getArea();
+    }
+    else {
+      std_cell_area_ += master->getArea();
+    }
   }
-  double untilization = 1;
-  height_ = width_ = int64_t(sqrt(area_/untilization));
-  DEBUG_PRINT("Total area: " << area_);
+  height_ = width_ = int64_t(sqrt(getArea()));
+  DEBUG_PRINT("Total area: " << getArea());
   DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
   // get cross nets that connect the insts in the group and the insts outside
   // copy insts to child block

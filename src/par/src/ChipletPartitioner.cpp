@@ -188,8 +188,8 @@ void ChipletPartitioner::addBlockage(std::vector<Chiplet>& chiplet_boxes){
 
 void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   size_t num_chiplets = chiplet_boxes.size();
-  // std::vector<long long int> chiplet_insts_areas(num_chiplets, 0);
-  // clear instances in the chiplet boxes
+  // get the chiplet module wrapper
+  ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
   for(auto& chiplet : chiplet_boxes){
     chiplet.instances.clear();
   }
@@ -208,24 +208,21 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
           max_overlap_idx = i;
         }
       }
-      // chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+      _logger->report("block inst: {} is in chiplet: {}", inst->getName(), chiplet_boxes[max_overlap_idx].name);
     }
     else {
       // for standard cells, do not consider its area
       for (size_t i = 0; i < num_chiplets; i++) {
         auto& chiplet = chiplet_boxes[i];
         if (chiplet.isInChiplet(inst)) {
-          // chiplet_insts_areas[i] += inst->getMaster()->getArea();
           max_overlap_idx = i;
           break;
         }
       }
     }
-    if(inst->getMaster()->isBlock())
-      chiplet_boxes[max_overlap_idx].instances.insert(inst);
+    chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
   // Unwrap the wrapper module and update the chiplet boxes
-  ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
   std::map<std::string, int> wrapper_inst_partition;
   // update the chiplet_boxes
   for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
@@ -234,7 +231,7 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
     for(size_t i = 0; i < num_chiplets; i++){
       auto& chiplet = chiplet_boxes[i];
       if(chiplet.instances.find(wrapper_inst) != chiplet.instances.end()){
-        _logger->report("wrapper inst: {} is in chiplet: {}", wrapper_inst->getName(), chiplet.name);
+        _logger->report("wrapper inst: {} is in chiplet: {}, Wrapper inst Area: {}, Chiple utilization: {}", wrapper_inst->getName(), chiplet.name, wrapper_inst->getMaster()->getArea(), chiplet.getUtilization());
         // delete the wrapper inst
         chiplet.instances.erase(wrapper_inst);
         wrapper_inst_partition[wrapper_group->getName()] = i;
@@ -271,14 +268,14 @@ void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxe
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
-  double alpha = 50;
-  double beta = 20.0;
-  double gamma = 100.0;
+  double alpha = 50.0;
+  double beta = 1000.0;
+  double gamma = 10000.0;
   double score = 0;
   double overlap_score = 0;
   double utilization_score = 0;
   double utilization_diff_score = 0;
-
+  auto& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
   // 1. for each macro, calculate the max overlap ratio with chiplet partition
@@ -303,7 +300,13 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
           max_overlap_idx = i;
         }
       }
-      chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+      std::shared_ptr<ModuleConstraintGroup> chiplet_module_group = chiplet_module_wrapper.findWrapperInst(inst);
+      if(chiplet_module_wrapper.findWrapperInst(inst)){
+        chiplet_insts_areas[max_overlap_idx] += chiplet_module_group->getArea();
+      }
+      else{
+        chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
+      }
       overlap_score += alpha * std::abs(1 - max_overlap);
     }
     else {
@@ -323,21 +326,23 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
   // 2. for each chiplet partition calculate the utilization ratio
   for (size_t i = 0; i < num_chiplets; i++) {
     auto& chiplet = chiplet_boxes[i];
-    chiplet.inst_area = chiplet_insts_areas[i];
+    chiplet.insts_area = chiplet_insts_areas[i];
     double utilization = chiplet.getUtilization();
     double utilization_min = _chiplet_utilization[i].first;
     double utilization_max = _chiplet_utilization[i].second;
     // Penalize if utilization is outside the specified range
     if (utilization < utilization_min) {
-      utilization_score += beta * (utilization_min - utilization);
+      utilization_score += std::numeric_limits<double>::max();
+      break;
     } else if (utilization > utilization_max) {
-      utilization_score += beta * (utilization - utilization_max);
+      utilization_score = std::numeric_limits<double>::max();
+      break;
     }
   }
   _logger->report("Utilization exceed score: {}", utilization_score);
   score += utilization_score;
 
-  // add a score stand for the utilization difference between chiplets
+  // Add a score to penalize the utilization difference between chiplets
   for (size_t i = 0; i < num_chiplets; i++) {
     for (size_t j = i + 1; j < num_chiplets; j++) {
       double utilization_diff = std::abs(chiplet_boxes[i].getUtilization() - chiplet_boxes[j].getUtilization());
@@ -382,7 +387,7 @@ double Chiplet::getOverlapRatio(odb::dbInst* inst)
 // this method  will calculate the utilization for the current partition
 double Chiplet::getUtilization()
 {
-  return inst_area / getArea();
+  return insts_area / getArea();
 }
 
 bool Chiplet::isInChiplet(odb::dbInst* inst)
