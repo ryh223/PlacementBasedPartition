@@ -220,8 +220,8 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
         }
       }
     }
-    if(inst->getMaster()->isBlock() && inst->getName().substr(0, 4) != "wrap")
-      continue;
+    // if(inst->getMaster()->isBlock() && inst->getName().substr(0, 4) != "wrap")
+    //   continue;
     chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
   // Unwrap the wrapper module and update the chiplet boxes
@@ -261,8 +261,10 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
 void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxes, std::shared_ptr<ChipletRegionCreater> chiplet_region_creater)
 {
   for(auto& chiplet : chiplet_boxes){
-    // auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
-    auto region = chiplet_region_creater->createRegion(chiplet.name, chiplet.instances, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    auto group = chiplet_region_creater->createGroup(chiplet.name, chiplet.instances);
+    // group->setType(odb::dbGroupType::POWER_DOMAIN);
+    auto region = chiplet_region_creater->createRegion(chiplet.name, group, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    // region->setRegionType(odb::dbRegionType::EXCLUSIVE);
   }
 }
 

@@ -290,7 +290,16 @@ bool Replace::initNesterovPlace(int threads)
 
   if (total_placeable_insts_ == 0) {
     log_->warn(GPL, 136, "No placeable instances - skipping placement.");
-    return false;
+    for (auto gp : db_->getChip()->getBlock()->getGroups()) {
+      pbVec_.push_back(
+            std::make_shared<PlacerBase>(db_, pbc_, log_, gp));
+    }
+
+    total_placeable_insts_ = 0;
+    for (const auto& pb : pbVec_) {
+      total_placeable_insts_ += pb->placeInsts().size();
+    }
+    // return false;
   }
 
   if (!nbc_) {

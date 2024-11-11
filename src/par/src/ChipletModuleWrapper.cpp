@@ -78,7 +78,7 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
                              << " Master: " << master->getName());
     area_ += master->getArea();
   }
-  double untilization = 0.8;
+  double untilization = 1;
   height_ = width_ = int64_t(sqrt(area_/untilization));
   DEBUG_PRINT("Total area: " << area_);
   DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
