@@ -157,6 +157,7 @@ double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chipl
       double score = calculateScore(solution);
       if(score < best_score){
         best_score = score;
+        _logger->report("current best_score: {}", best_score);
         // fineShape(slicing_tree, solution);
         chiplet_boxes = solution;
       }
@@ -220,9 +221,8 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
         }
       }
     }
-    // if(inst->getMaster()->isBlock() && inst->getName().substr(0, 4) != "wrap")
-    //   continue;
-    chiplet_boxes[max_overlap_idx].instances.insert(inst);
+    if(inst->getMaster()->isBlock())
+      chiplet_boxes[max_overlap_idx].instances.insert(inst);
   }
   // Unwrap the wrapper module and update the chiplet boxes
   ChipletModuleWrapper& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
@@ -271,9 +271,14 @@ void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxe
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
-  double alpha = 0.5;
-  double beta = 1.0;
+  double alpha = 50;
+  double beta = 20.0;
+  double gamma = 100.0;
   double score = 0;
+  double overlap_score = 0;
+  double utilization_score = 0;
+  double utilization_diff_score = 0;
+
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
   // 1. for each macro, calculate the max overlap ratio with chiplet partition
@@ -299,7 +304,7 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
         }
       }
       chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
-      score += alpha * std::abs(1 - max_overlap);
+      overlap_score += alpha * std::abs(1 - max_overlap);
     }
     else {
       // for standard cells, do not consider its area
@@ -312,6 +317,9 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
       }
     }
   }
+  _logger->report("Overlap exceed score: {}", overlap_score);
+  score += overlap_score;
+
   // 2. for each chiplet partition calculate the utilization ratio
   for (size_t i = 0; i < num_chiplets; i++) {
     auto& chiplet = chiplet_boxes[i];
@@ -321,11 +329,24 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
     double utilization_max = _chiplet_utilization[i].second;
     // Penalize if utilization is outside the specified range
     if (utilization < utilization_min) {
-      score += beta * (utilization_min - utilization);
+      utilization_score += beta * (utilization_min - utilization);
     } else if (utilization > utilization_max) {
-      score += beta * (utilization - utilization_max);
+      utilization_score += beta * (utilization - utilization_max);
     }
   }
+  _logger->report("Utilization exceed score: {}", utilization_score);
+  score += utilization_score;
+
+  // add a score stand for the utilization difference between chiplets
+  for (size_t i = 0; i < num_chiplets; i++) {
+    for (size_t j = i + 1; j < num_chiplets; j++) {
+      double utilization_diff = std::abs(chiplet_boxes[i].getUtilization() - chiplet_boxes[j].getUtilization());
+      utilization_diff_score += gamma * utilization_diff;
+    }
+  }
+  _logger->report("Utilization difference score: {}", utilization_diff_score);
+  score += utilization_diff_score;
+
   return score;
 }
 
