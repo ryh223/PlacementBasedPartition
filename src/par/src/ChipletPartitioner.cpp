@@ -91,6 +91,12 @@ std::vector<ChipletBlock> ChipletPartitioner::initChipletBlocks()
 
 void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int step, double alpha, SlicingTree* slicing_tree)
 {
+  auto& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
+  // print some module info
+  for (auto& module_group : chiplet_module_wrapper.getModuleGroups()) {
+    // cout name, area of the module group
+    std::cout << "Module group " << module_group->getName() << " size: " << module_group->getInsts().size() << " Area: " << module_group->getArea() << std::endl;
+  }
   //minimize score
   // SlicingTree current_tree = SlicingTree(*slicing_tree);
   SlicingTree current_tree = *slicing_tree;
@@ -130,6 +136,7 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
       // }
       temp *= alpha;
     }
+    _logger->report("current best_score: {}", best_score);
   }
   for(Chiplet& chiplet : best_solition){
     _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
@@ -137,6 +144,29 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
   updateInsts(best_solition);
   // addBlockage(best_solition);
   resetMacro();
+  chipletAlign(best_solition);
+  odb::dbGroup* null_group = _block->findGroup("null_group");
+  std::vector<double> area_target(best_solition.size(), 0);
+  std::vector<odb::dbGroup*> assignment(best_solition.size(), nullptr);
+  moduleGroupReAssignment(best_solition, area_target);
+  nullGroupReAssignment(null_group, area_target, assignment);
+}
+
+void ChipletPartitioner::groupRefinement(std::vector<Chiplet>& chiplet_boxes){
+  // refine the chiplet boxes
+}
+
+void ChipletPartitioner::moduleGroupReAssignment(std::vector<Chiplet>& chiplet_boxes, std::vector<double>& area_target){
+  // get the module group
+} 
+
+void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::vector<double>& area, std::vector<odb::dbGroup*>& assignment){
+  // assign region for the insts belongs to null group
+}
+
+void ChipletPartitioner::chipletAlign(std::vector<Chiplet>& chiplet_boxes)
+{
+  // align the chiplet boxes
 }
 
 void ChipletPartitioner::resetMacro(){
@@ -157,7 +187,6 @@ double ChipletPartitioner::evaluate(SlicingTree* slicing_tree, std::vector<Chipl
       double score = calculateScore(solution);
       if(score < best_score){
         best_score = score;
-        _logger->report("current best_score: {}", best_score);
         // fineShape(slicing_tree, solution);
         chiplet_boxes = solution;
       }
@@ -231,22 +260,6 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
   // update the chiplet_boxes
   chiplet_module_wrapper.runUnwrap();
   // update regions
-  for(auto& chiplet : chiplet_boxes){
-    chiplet.groups.clear();
-  }
-  for(auto& wrapper_group : chiplet_module_wrapper.getModuleGroups()){
-    int partition = wrapper_inst_partition[wrapper_group->getName()];
-    auto& chiplet = chiplet_boxes[partition];
-    int center_x = (chiplet.location.first + chiplet.width / 2) ;
-    int center_y = (chiplet.location.second + chiplet.height / 2) ;
-    odb::dbGroup* group = wrapper_group->getGroup();
-    for(auto inst : wrapper_group->getInsts()){
-      inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
-      inst->setLocation(center_x, center_y);
-    }
-    chiplet.groups.insert(group);
-    _logger->report("wrapper inst have group: {} is in chiplet: {}", wrapper_group->getName(), chiplet.name);
-  }
   // update the chiplet boxes
   std::shared_ptr<ChipletRegionCreater> chiplet_region_creater = std::make_shared<ChipletRegionCreater>(_db, _block, _logger);
   chipletCreateRegions(chiplet_boxes, chiplet_region_creater);
@@ -255,11 +268,21 @@ void ChipletPartitioner::updateInsts(std::vector<Chiplet>& chiplet_boxes){
 void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxes, std::shared_ptr<ChipletRegionCreater> chiplet_region_creater)
 {
   for(auto& chiplet : chiplet_boxes){
-    auto region = chiplet_region_creater->createRegion(chiplet.name, chiplet.groups, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    std::set<odb::dbGroup*> groups;
+    for (auto module_inst : chiplet.groups){
+      groups.insert(module_inst->getGroup());
+    }
+    auto region = chiplet_region_creater->createRegion(chiplet.name, groups, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+  }
+  odb::dbGroup* null_group = odb::dbGroup::create(_block, "null_group");
+  for (auto inst : _block->getInsts()) {
+    if (inst->getGroup() == nullptr) {
+      null_group->addInst(inst);
+    }
   }
 }
 
-// void ChipletPartitioner::dynamicMoveModules()
+// void ChipletPartitioner::reassignGroups()
 // {
 //   // move instances according to the insts area in the chiplet, make it balance
 //   std::map<odb::dbModInst*, int64_t> mod_inst_area;
@@ -269,7 +292,7 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
   // regularization parameters
   double alpha = 50.0;
-  double beta = 100.0;
+  double beta = 10.0;
   double gamma = 100.0;
   double score = 0;
   double overlap_score = 0;
@@ -278,8 +301,28 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
   auto& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
   // what gonna to do here is to calculate metrics we define to determine the
   // quality of partition
-  // 1. for each macro, calculate the max overlap ratio with chiplet partition
+  // 1. for each insts in module group calculate the overlap ratio with chiplet
+  for (auto& chiplet : chiplet_boxes) {
+    chiplet.insts_area = 0;
+    chiplet.groups.clear();
+  }
   size_t num_chiplets = chiplet_boxes.size();
+  for (auto& module_inst : chiplet_module_wrapper.getModuleGroups()) {
+    double max_overlap = 0;
+    size_t max_overlap_idx = 0;
+    for (size_t i = 0; i < num_chiplets; i++) {
+      auto& chiplet = chiplet_boxes[i];
+      double overlap = chiplet.getOverlapRatio(module_inst);
+      if (overlap > max_overlap) {
+        max_overlap = overlap;
+        max_overlap_idx = i;
+      }
+    }
+    overlap_score += alpha * std::abs(1 - max_overlap);
+    chiplet_boxes[max_overlap_idx].groups.insert(module_inst);
+    chiplet_boxes[max_overlap_idx].insts_area += module_inst->getArea();
+  }
+  // 2. for each macro, calculate the max overlap ratio with chiplet partition
   std::vector<int64_t> chiplet_insts_areas(num_chiplets, 0);
   for (auto& chiplet : chiplet_boxes) {
     if (chiplet.getArea() < _chiplet_area) {
@@ -287,6 +330,9 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
     }
   }
   for (auto inst : _block->getInsts()) {
+    if(inst->getGroup() != nullptr && inst->getGroup()->getType() == odb::dbGroupType::PHYSICAL_CLUSTER){
+      continue;
+    }
     if (inst->getMaster()->isBlock()) {
       // divide instances into different chiplet boxes and then calculate the
       // score
@@ -300,17 +346,11 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
           max_overlap_idx = i;
         }
       }
-      std::shared_ptr<ModuleConstraintGroup> chiplet_module_group = chiplet_module_wrapper.findWrapperInst(inst);
-      if(chiplet_module_wrapper.findWrapperInst(inst)){
-        chiplet_insts_areas[max_overlap_idx] += chiplet_module_group->getArea();
-      }
-      else{
-        chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
-      }
-      overlap_score += alpha * std::abs(1 - max_overlap);
+      overlap_score += beta * std::abs(1 - max_overlap);
+      chiplet_insts_areas[max_overlap_idx] += inst->getMaster()->getArea();
     }
     else {
-      // for standard cells, do not consider its area
+      // for standard cells, do not consider its overlap score
       for (size_t i = 0; i < num_chiplets; i++) {
         auto& chiplet = chiplet_boxes[i];
         if (chiplet.isInChiplet(inst)) {
@@ -320,26 +360,15 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
       }
     }
   }
-  _logger->report("Overlap exceed score: {}", overlap_score);
+  _logger->report(" Overlap exceed score: {}", overlap_score);
   score += overlap_score;
 
   // 2. for each chiplet partition calculate the utilization ratio
   for (size_t i = 0; i < num_chiplets; i++) {
     auto& chiplet = chiplet_boxes[i];
-    chiplet.insts_area = chiplet_insts_areas[i];
-    // double utilization = chiplet.getUtilization();
-    // double utilization_min = _chiplet_utilization[i].first;
-    // double utilization_max = _chiplet_utilization[i].second;
-    // // Penalize if utilization is outside the specified range
-    // if (utilization < utilization_min) {
-    //   utilization_score += beta * (utilization_min - utilization);
-    //   break;
-    // } else if (utilization > utilization_max) {
-    //   utilization_score += beta * (utilization - utilization_max);
-    //   break;
-    // }
+    chiplet.insts_area += chiplet_insts_areas[i];
   }
-  _logger->report("Utilization exceed score: {}", utilization_score);
+  _logger->report(" Utilization exceed score: {}", utilization_score);
   score += utilization_score;
 
   // Add a score to penalize the utilization difference between chiplets
@@ -349,7 +378,7 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
       utilization_diff_score += gamma * utilization_diff;
     }
   }
-  _logger->report("Utilization difference score: {}", utilization_diff_score);
+  _logger->report(" Utilization difference score: {}", utilization_diff_score);
   score += utilization_diff_score;
 
   return score;
@@ -384,6 +413,17 @@ double Chiplet::getOverlapRatio(odb::dbInst* inst)
   return overlap / inst_area;
 }
 
+double Chiplet::getOverlapRatio(std::shared_ptr<ModuleConstraintGroup> module_group)
+{
+  int64_t overlap = 0;
+  for (auto inst : module_group->getGroup()->getInsts()) {
+    if (isInChiplet(inst)) {
+      overlap += inst->getMaster()->getArea();
+    }
+  }
+  return double(overlap) / module_group->getArea();
+}
+
 // this method  will calculate the utilization for the current partition
 double Chiplet::getUtilization()
 {
@@ -394,6 +434,12 @@ bool Chiplet::isInChiplet(odb::dbInst* inst)
 {
   int inst_x, inst_y;
   inst->getLocation(inst_x, inst_y);
+  if (inst->getMaster()->isBlock()){
+    inst_x = inst_x + inst->getMaster()->getWidth() / 2;
+    inst_y = inst_y + inst->getMaster()->getHeight() / 2;
+    return inst_x >= location.first && inst_x <= location.first + width &&
+         inst_y >= location.second && inst_y <= location.second + height;
+  }
   return inst_x >= location.first && inst_x <= location.first + width &&
          inst_y >= location.second && inst_y <= location.second + height;
 }

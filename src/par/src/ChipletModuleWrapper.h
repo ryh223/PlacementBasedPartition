@@ -103,6 +103,11 @@ class ModuleConstraintGroup
    */
   void addInst(odb::dbInst* inst)
   {
+    if (inst->getMaster()->isBlock()) {
+      macro_area_ += inst->getMaster()->getArea();
+    } else {
+      std_cell_area_ += inst->getMaster()->getArea();
+    }
     insts_.insert(inst);
     if(group_ == nullptr){
       group_ = odb::dbGroup::create(inst->getBlock(), block_name_.c_str());
@@ -115,6 +120,11 @@ class ModuleConstraintGroup
    */
   void removeInst(odb::dbInst* inst)
   {
+    if (inst->getMaster()->isBlock()) {
+      macro_area_ -= inst->getMaster()->getArea();
+    } else {
+      std_cell_area_ -= inst->getMaster()->getArea();
+    }
     insts_.erase(inst);
     group_->removeInst(inst);
     DEBUG_PRINT("Removed instance: " << inst->getName());
@@ -129,6 +139,8 @@ class ModuleConstraintGroup
    */
   void clearInsts()
   {
+    macro_area_ = 0;
+    std_cell_area_ = 0;
     if(group_ != nullptr){
       odb::dbGroup::destroy(group_);
       group_ = nullptr;
@@ -155,7 +167,7 @@ class ModuleConstraintGroup
    * @return The total area of the block.
    */
   int64_t getArea() { 
-    return std_cell_area_ + macro_area_; 
+    return std_cell_area_/0.7 + macro_area_; 
   }
   /**
    * @brief Get the area of standard cells in the block.

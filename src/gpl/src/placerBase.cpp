@@ -1036,10 +1036,44 @@ void PlacerBase::init()
     if (!inst->isInstance()) {
       continue;
     }
-    if (inst->dbInst() && inst->dbInst()->getGroup() != group_) {
-      if(inst->dbInst()->getGroup() != nullptr && inst->dbInst()->getGroup()->getType() == odb::dbGroupType::PHYSICAL_CLUSTER && inst->dbInst()->getGroup()->getRegion() != nullptr)
-      {
-        continue;
+    if (inst->dbInst()) {
+      odb::dbGroup* group = inst->dbInst()->getGroup();
+      // group_ is nullptr, then all instances has no region and group should be include
+      // group_ is not nullptr, then all instances has region and same parent group as group_ should be include
+      if (group_ == nullptr) {
+        if (group) {
+          // get parent group
+          while(group->getParentGroup() != nullptr)
+          {
+            group = group->getParentGroup();
+          }
+          // parent group has region is not ok
+          if(group->getType() == odb::dbGroupType::PHYSICAL_CLUSTER && group->getRegion() != nullptr)
+          {
+            continue;
+          }
+        }
+        // else is OK
+      }
+      else {
+        if (group) {
+          while(group->getParentGroup() != nullptr)
+          {
+            group = group->getParentGroup();
+          }
+          if (group != group_)
+          {
+            continue;
+          }
+          if(group->getType() != odb::dbGroupType::PHYSICAL_CLUSTER || group->getRegion() == nullptr)
+          {
+            // is not OK
+            continue;
+          }
+        }
+        else {
+          continue;
+        }
       }
     }
 

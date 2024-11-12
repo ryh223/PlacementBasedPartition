@@ -72,18 +72,6 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
   int mpin_halo = 10;
   // expand the area of standrd cells
   // travel the insts to get the area of the block
-  DEBUG_PRINT("Calculating area of the block...");
-  for (auto inst : insts_) {
-    odb::dbMaster* master = inst->getMaster();
-    DEBUG_PRINT("Instance: " << inst->getName()
-                             << " Master: " << master->getName());
-    if (master->isBlock()) {
-      macro_area_ += master->getArea();
-    }
-    else {
-      std_cell_area_ += master->getArea();
-    }
-  }
   height_ = width_ = int64_t(sqrt(getArea()));
   DEBUG_PRINT("Total area: " << getArea());
   DEBUG_PRINT("Block height: " << height_ << " width: " << width_);
@@ -534,9 +522,11 @@ odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
     return nullptr;
   }
   odb::dbBox::create(region, xMin, yMin, xMax, yMax);
+  odb::dbGroup* total_group = odb::dbGroup::create(_block, region_name.c_str());
   for (auto group : groups) {
-    region->addGroup(group);
+    total_group->addGroup(group);
   }
+  region->addGroup(total_group);
   _logger->report("Region {} created successfully", region_name);
   return region;
 }
