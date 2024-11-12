@@ -297,8 +297,84 @@ void ChipletPartitioner::moveModuleGroupToChiplet(std::shared_ptr<ModuleConstrai
 }
 
 void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::vector<double>& area, std::vector<odb::dbGroup*>& assignment){
-  // assign region for the insts belongs to null group
+  std::vector<std::pair<size_t, std::pair<int64_t, int64_t>>> cur_area_and_constraint;
+  for(size_t i = 0; i < area.size(); i++){
+    cur_area_and_constraint.push_back(std::make_pair(i, std::make_pair(0, area[i])));
+  }
+  std::sort(cur_area_and_constraint.begin(), cur_area_and_constraint.end(), [](const std::pair<size_t, std::pair<int64_t, int64_t>>& a, const std::pair<size_t, std::pair<int64_t, int64_t>>& b) {
+    return a.second.second > b.second.second;
+  });
+
+  for (size_t i = 0; i < area.size(); i++) {
+    odb::dbGroup* child_group = odb::dbGroup::create(group, fmt::format("sub_null_group_{}", i).c_str());
+    assignment[i] = child_group;
+  }
+
+  std::set<odb::dbInst*> already_travel;
+  double ratio = 0.9;
+  // std::vector<odb::dbInst*> to_assign = group->getInsts();
+  std::set<odb::dbInst*> to_assign;
+  for(auto inst : group->getInsts()){
+    to_assign.insert(inst);
+  }
+
+  auto can_place = [&](odb::dbInst* inst, size_t group_id) -> bool {
+    if(cur_area_and_constraint[group_id].second.first + inst->getMaster()->getArea() > cur_area_and_constraint[group_id].second.second){
+      return false;
+    } else {
+      return true;
+    }
+  };
+
+  std::function<void(odb::dbModInst*, double, size_t)> add_module_insts_recursive;
+  add_module_insts_recursive = [&](odb::dbModInst* mod_inst, double ratio, size_t group_id) {
+      odb::dbModule* _module = mod_inst->getMaster();
+      for(odb::dbModInst* child_mod_inst : _module->getChildren()){
+        add_module_insts_recursive(child_mod_inst, ratio, group_id);
+      }
+      for(odb::dbInst* inst : _module->getLeafInsts()){
+        assignment[cur_area_and_constraint[group_id].first]->addInst(inst);
+        cur_area_and_constraint[group_id].second.first += inst->getMaster()->getArea();
+      }
+  };
+
+  while (!to_assign.empty()) {
+    size_t cur_group_id = 0;
+    std::set<odb::dbInst*> no_assigned;
+    for (odb::dbInst* inst : to_assign) {
+      if (already_travel.find(inst) != already_travel.end()) {
+        already_travel.erase(inst);
+        continue;
+      }
+      already_travel.insert(inst);
+      bool ifassigned = false;
+      while (cur_group_id < area.size() && !ifassigned) {
+        if (can_place(inst, cur_group_id)) {
+          ifassigned = true;
+          assignment[cur_area_and_constraint[cur_group_id].first]->addInst(inst);
+          cur_area_and_constraint[cur_group_id].second.first += inst->getMaster()->getArea();
+          odb::dbModule *module = inst->getModule();
+          for(odb::dbModInst* mod_inst : module->getChildren()){
+            add_module_insts_recursive(mod_inst, ratio, cur_group_id);
+          }
+          for(odb::dbInst* inst : module->getLeafInsts()){
+            assignment[cur_area_and_constraint[cur_group_id].first]->addInst(inst);
+            cur_area_and_constraint[cur_group_id].second.first += inst->getMaster()->getArea();
+          }
+          // add_module_insts_recursive(inst, ratio, cur_group_id);
+        } else {
+          cur_group_id++;
+        }
+      }
+      if (!ifassigned) {
+        no_assigned.insert(inst);
+      }
+    }
+    ratio *= 1.1;
+  }
 }
+
+
 
 void ChipletPartitioner::chipletAlign(std::vector<Chiplet>& chiplet_boxes)
 {
