@@ -373,6 +373,7 @@ bool ChipletModuleWrapper::initModuleGroups(
       for (odb::dbModInst* mod_inst : db_module->getChildren()) {
         odb::dbModule* child_module = mod_inst->getMaster();
         if (abort_modules.find(child_module) == abort_modules.end()) {
+          _grouped_mod_insts.insert(mod_inst);
           addInstsRecursively(child_module);
         }
       }

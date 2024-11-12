@@ -31,6 +31,8 @@ class dbDatabase;
 
 namespace par {
 
+class Chiplet;
+
 class ModuleConstraintGroup
 {
   /**
@@ -55,6 +57,7 @@ class ModuleConstraintGroup
    * @note The destructor deletes the `wrapped_inst_`.
    */
  private:
+  Chiplet* chiplet_{nullptr};
   odb::dbInst* wrapped_inst_{nullptr};
   odb::dbBlock* child_block_{nullptr};
   odb::dbGroup* group_{nullptr};
@@ -97,6 +100,15 @@ class ModuleConstraintGroup
    * @return A reference to the set of instances.
    */
   std::set<odb::dbInst*>& getInsts() { return insts_; }
+  /**
+   * @brief Get the chiplet.
+   */
+  Chiplet* getChiplet() { return chiplet_; }
+  /**
+   * @brief Set the chiplet.
+   * @param chiplet The chiplet to set.
+   */
+  void setChiplet(Chiplet* chiplet) { chiplet_ = chiplet; }
   /**
    * @brief Add an instance to the set.
    * @param inst The instance to add.
@@ -167,7 +179,7 @@ class ModuleConstraintGroup
    * @return The total area of the block.
    */
   int64_t getArea() { 
-    return std_cell_area_/0.7 + macro_area_; 
+    return std_cell_area_ + macro_area_; 
   }
   /**
    * @brief Get the area of standard cells in the block.
@@ -241,6 +253,9 @@ class ChipletModuleWrapper
     return _module_groups;
   }
   void Test();
+  bool checkModInst(odb::dbModInst* mod_inst){
+    return _grouped_mod_insts.find(mod_inst) != _grouped_mod_insts.end();
+  }
   void setOpenROAD(odb::dbDatabase* db,
                    odb::dbBlock* block,
                    utl::Logger* logger)
@@ -256,6 +271,7 @@ class ChipletModuleWrapper
   odb::dbBlock* _block;
   utl::Logger* _logger;
   std::set<std::shared_ptr<ModuleConstraintGroup>> _module_groups;
+  std::set<odb::dbModInst*> _grouped_mod_insts;
 };
 
 class ChipletRegionCreater

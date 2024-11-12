@@ -3,7 +3,7 @@
 #include "moduleMananger.h"
 #include "odb/db.h"
 #include "utl/Logger.h"
-
+#include <queue>
 
 namespace par {
 void ChipletPartitioner::initPhisicalConstraints(
@@ -141,24 +141,160 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
   for(Chiplet& chiplet : best_solition){
     _logger->report("chiplet: {} {} {} {} {}", chiplet.name, chiplet.location.first, chiplet.location.second, chiplet.width, chiplet.height);
   }
+  chipletAlign(best_solition);
   updateInsts(best_solition);
   // addBlockage(best_solition);
   resetMacro();
-  chipletAlign(best_solition);
   odb::dbGroup* null_group = _block->findGroup("null_group");
   std::vector<double> area_target(best_solition.size(), 0);
   std::vector<odb::dbGroup*> assignment(best_solition.size(), nullptr);
   moduleGroupReAssignment(best_solition, area_target);
   nullGroupReAssignment(null_group, area_target, assignment);
+  updateGroups(best_solition, assignment);
 }
 
-void ChipletPartitioner::groupRefinement(std::vector<Chiplet>& chiplet_boxes){
-  // refine the chiplet boxes
+void ChipletPartitioner::updateGroups(std::vector<Chiplet>& chiplet_boxes, std::vector<odb::dbGroup*>& assignment)
+{
+  for (int i = 0; i < assignment.size(); i++){
+    odb::dbGroup* group = assignment[i];
+    if (group){
+      chiplet_boxes[i].top_group->addGroup(group);
+    }
+    else {
+      _logger->report("group is nullptr");
+    }
+  }
+}
+
+void ChipletPartitioner::groupRefinement(std::vector<Chiplet>& chiplet_boxes)
+{
+  // move the illegal insts
+  // for insts in blocks check if the insts is in right region
+  for (auto inst : _block->getInsts()){
+    // move the inst to the right region
+    // get top group
+    odb::dbGroup* top_group = inst->getGroup();
+    while (top_group->getParentGroup() != nullptr){
+      top_group = top_group->getParentGroup();
+    }
+    int inst_x, inst_y;
+    inst->getLocation(inst_x, inst_y);
+    odb::dbRegion* region = inst->getRegion();
+    int chiplet_idx = std::stoi(top_group->getName());
+    if(region){
+      odb::Rect rect = (*region->getBoundaries().begin())->getBox();
+      if(inst_x < rect.xMin() || inst_x > rect.xMax() || inst_y < rect.yMin() || inst_y > rect.yMax()){
+        // move the inst to the right region
+        // get the chiplet box
+        Chiplet& chiplet = chiplet_boxes[chiplet_idx];
+        // get the chiplet box boundary
+        int llx = chiplet.location.first;
+        int lly = chiplet.location.second;
+        int urx = llx + chiplet.width;
+        int ury = lly + chiplet.height;
+        // move the inst to the center of the chiplet box
+        int new_x = (llx + urx) / 2;
+        int new_y = (lly + ury) / 2;
+        inst->setLocation(new_x, new_y);
+        _logger->report("inst {} is moved to the center of the chiplet box {}", inst->getName(), chiplet.name);
+      }
+    }
+    else{
+      _logger->report("inst {} is not in any region", inst->getName());
+    }
+  }
 }
 
 void ChipletPartitioner::moduleGroupReAssignment(std::vector<Chiplet>& chiplet_boxes, std::vector<double>& area_target){
-  // get the module group
-} 
+  // reassign the groups to different chiplet boxes
+  // check the region utilization now
+  // get the min area module_group and move it to the chiplet box with minimum utilization to balance
+
+  auto& chiplet_module_wrapper = ChipletModuleWrapper::getInstance();
+  auto module_groups = chiplet_module_wrapper.getModuleGroups();
+
+  // Create a priority queue to store module groups based on their area and utilization
+  auto cmp = [](std::shared_ptr<ModuleConstraintGroup> a, std::shared_ptr<ModuleConstraintGroup> b) {
+    double ultilization_a = a->getChiplet()->getUtilization();
+    double ultilization_b = b->getChiplet()->getUtilization();
+    double area_a = a->getArea();
+    double area_b = b->getArea();
+    if (ultilization_a == ultilization_b) {
+      return area_a < area_b;
+    }
+    return ultilization_a > ultilization_b;
+  };
+  std::priority_queue<std::shared_ptr<ModuleConstraintGroup>, std::vector<std::shared_ptr<ModuleConstraintGroup>>, decltype(cmp)> q(cmp);
+
+  // Add all module groups to the priority queue
+  for (auto& module_group : module_groups) {
+    q.push(module_group);
+  }
+
+  int max_it = 500;
+  int it = 0;
+  while (!q.empty() && it < max_it) {
+    it++;
+    auto cur = q.top();
+    q.pop();
+
+    double max_gain = std::numeric_limits<double>::lowest();
+    size_t best_chiplet_idx = 0;
+
+    // Calculate move gain for each chiplet and choose the one with the maximum gain
+    for (size_t i = 0; i < chiplet_boxes.size(); i++) {
+      double gain = calculateMoveGain(cur, &chiplet_boxes[i]);
+      std::cout << cur->getName()<< " move to chiplet " << i << " gain: " << gain << std::endl;
+      if (gain > max_gain) {
+        max_gain = gain;
+        best_chiplet_idx = i;
+      }
+    }
+
+    if (max_gain > 0) {
+      // Move the current module group to the best chiplet and update
+      moveModuleGroupToChiplet(cur, &chiplet_boxes[best_chiplet_idx]);
+      q.push(cur);
+    }
+  }
+}
+
+double ChipletPartitioner::calculateMoveGain(std::shared_ptr<ModuleConstraintGroup> module_group, Chiplet* dest_chiplet) {
+  Chiplet* source_chiplet = module_group->getChiplet();
+  double min_util_dest = dest_chiplet->utilization_constaint.first;
+  double max_util_dest = dest_chiplet->utilization_constaint.second;
+  double min_util_source = source_chiplet->utilization_constaint.first;
+  double max_util_source = source_chiplet->utilization_constaint.second;
+  double move_gain = std::numeric_limits<double>::lowest();
+  double dest_insts_area = dest_chiplet->insts_area;
+  double dest_chiplet_area = dest_chiplet->getArea();
+  double module_group_area = module_group->getArea();
+  double source_chiplet_area = source_chiplet->getArea();
+  double source_insts_area = source_chiplet->insts_area;
+  double distance = std::abs(dest_chiplet->location.first - source_chiplet->location.first)
+                    + std::abs(dest_chiplet->location.second - source_chiplet->location.second);
+  double util_source = source_insts_area / source_chiplet_area;
+  double new_util_source = (source_insts_area - module_group_area) / source_chiplet_area;
+  double util_dest = dest_insts_area / dest_chiplet_area;
+  double new_util_dest = (dest_insts_area + module_group_area) / dest_chiplet_area;
+  // should matain the utilization of the chiplet in range of chiplet->utilization_constaint
+  // calculate the squre
+  double util_diff = util_dest - util_source;
+  double new_util_diff = new_util_dest - new_util_source;
+  double utilization_regulization = util_diff * util_diff - new_util_diff * new_util_diff;
+  double distance_diff = 0.05 * distance / std::sqrt(dest_chiplet_area + source_chiplet_area);
+  move_gain = utilization_regulization - distance_diff;
+  std::cout << "utilization_regulization: " << utilization_regulization << " distance_diff: " << distance_diff << " move_gain: " << move_gain << std::endl;
+  return move_gain;
+}
+
+void ChipletPartitioner::moveModuleGroupToChiplet(std::shared_ptr<ModuleConstraintGroup> module_group, Chiplet* chiplet) {
+  // Implement the logic to move the module group to the chiplet
+  // Update the chiplet's area, utilization, and other relevant properties
+  chiplet->removeModuleGroup(module_group);
+  chiplet->addModuleGroup(module_group);
+  chiplet->top_group->addGroup(module_group->getGroup());
+}
 
 void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::vector<double>& area, std::vector<odb::dbGroup*>& assignment){
   // assign region for the insts belongs to null group
@@ -167,6 +303,40 @@ void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::v
 void ChipletPartitioner::chipletAlign(std::vector<Chiplet>& chiplet_boxes)
 {
   // align the chiplet boxes
+  // in this method we want to do alignment for the chiplet to the nearest site
+  // get site size from database
+  odb::dbRow* row = *_block->getRows().begin();
+  odb::dbSite* site = row->getSite();
+  int site_size_x = site->getWidth();
+  int site_size_y = site->getHeight();
+  for (auto& chiplet : chiplet_boxes){
+    // location, width, height are double at first
+    int llx = chiplet.location.first;
+    int lly = chiplet.location.second;
+    // align the chiplet to the nearest site
+    int new_llx = llx / site_size_x * site_size_x;
+    int new_lly = lly / site_size_y * site_size_y;
+    // consider the core box boundary
+    if (new_llx < _core_box.first.first) {
+      new_llx = _core_box.first.first;
+    }
+    if (new_lly < _core_box.first.second) {
+      new_lly = _core_box.first.second;
+    }
+    int new_width = (int(chiplet.width) / site_size_x + 1) * site_size_x;
+    int new_height = (int(chiplet.height) / site_size_y + 1) * site_size_y;
+    // consider the core box boundary
+    if (new_llx + new_width > _core_box.second.first) {
+      new_width = int(_core_box.second.first) - new_llx;
+    }
+    if (new_lly + new_height > _core_box.second.second) {
+      new_height = int(_core_box.second.second) - new_lly;
+    }
+    chiplet.location.first = new_llx;
+    chiplet.location.second = new_lly;
+    chiplet.width = new_width;
+    chiplet.height = new_height;
+  }
 }
 
 void ChipletPartitioner::resetMacro(){
@@ -272,7 +442,8 @@ void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxe
     for (auto module_inst : chiplet.groups){
       groups.insert(module_inst->getGroup());
     }
-    auto region = chiplet_region_creater->createRegion(chiplet.name, groups, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    chiplet_region_creater->createRegion(chiplet.name, groups, chiplet.location.first, chiplet.location.second, chiplet.location.first + chiplet.width, chiplet.location.second + chiplet.height);
+    chiplet.top_group = _block->findGroup(chiplet.name.c_str());
   }
   odb::dbGroup* null_group = odb::dbGroup::create(_block, "null_group");
   for (auto inst : _block->getInsts()) {
@@ -290,6 +461,12 @@ void ChipletPartitioner::chipletCreateRegions(std::vector<Chiplet>& chiplet_boxe
 
 double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
 {
+  // check partition area
+  for (auto& chiplet : chiplet_boxes) {
+    if (chiplet.getArea() < _chiplet_area) {
+      return std::numeric_limits<double>::max();
+    }
+  }
   // regularization parameters
   double alpha = 50.0;
   double beta = 10.0;
@@ -319,16 +496,10 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
       }
     }
     overlap_score += alpha * std::abs(1 - max_overlap);
-    chiplet_boxes[max_overlap_idx].groups.insert(module_inst);
-    chiplet_boxes[max_overlap_idx].insts_area += module_inst->getArea();
+    chiplet_boxes[max_overlap_idx].addModuleGroup(module_inst);
   }
   // 2. for each macro, calculate the max overlap ratio with chiplet partition
   std::vector<int64_t> chiplet_insts_areas(num_chiplets, 0);
-  for (auto& chiplet : chiplet_boxes) {
-    if (chiplet.getArea() < _chiplet_area) {
-      return std::numeric_limits<double>::max();
-    }
-  }
   for (auto inst : _block->getInsts()) {
     if(inst->getGroup() != nullptr && inst->getGroup()->getType() == odb::dbGroupType::PHYSICAL_CLUSTER){
       continue;
@@ -372,15 +543,21 @@ double ChipletPartitioner::calculateScore(std::vector<Chiplet>& chiplet_boxes)
   score += utilization_score;
 
   // Add a score to penalize the utilization difference between chiplets
+  // Calculate the average
+  double total_insts_area = 0;
+  double chiplets_area = 0;
   for (size_t i = 0; i < num_chiplets; i++) {
-    for (size_t j = i + 1; j < num_chiplets; j++) {
-      double utilization_diff = std::abs(chiplet_boxes[i].getUtilization() - chiplet_boxes[j].getUtilization());
-      utilization_diff_score += gamma * utilization_diff;
-    }
+    auto& chiplet = chiplet_boxes[i];
+    total_insts_area += chiplet.insts_area;
+    chiplets_area += chiplet.getArea();
+  }
+  double average_utilization = total_insts_area / chiplets_area;
+  for (size_t i = 0; i < num_chiplets; i++) {
+    auto& chiplet = chiplet_boxes[i];
+    utilization_diff_score += gamma * std::sqrt(std::abs(chiplet.getUtilization() - average_utilization));
   }
   _logger->report(" Utilization difference score: {}", utilization_diff_score);
   score += utilization_diff_score;
-
   return score;
 }
 

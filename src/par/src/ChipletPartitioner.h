@@ -21,11 +21,12 @@ class Chiplet
 {
  public:
   std::string name;
+  odb::dbGroup* top_group{nullptr};
   std::set<std::shared_ptr<ModuleConstraintGroup>> groups;
   std::set<odb::dbInst*> instances;
-  double width;
-  double height;
-  std::pair<double, double> location;
+  double width{0};
+  double height{0};
+  std::pair<double, double> location{0, 0};
   utilization utilization_constaint;
   double insts_area;
  public:
@@ -39,6 +40,18 @@ class Chiplet
   // this method  will calculate the utilization for the current partition
   double getUtilization();
   bool isInChiplet(odb::dbInst* inst);
+  void addModuleGroup(std::shared_ptr<ModuleConstraintGroup> module_group)
+  {
+    insts_area += module_group->getArea();
+    groups.insert(module_group);
+    module_group->setChiplet(this);
+  }
+  void removeModuleGroup(std::shared_ptr<ModuleConstraintGroup> module_group)
+  {
+    insts_area -= module_group->getArea();
+    groups.erase(module_group);
+    module_group->setChiplet(nullptr);
+  }
 };
 
 class ChipletPartitioner
@@ -154,6 +167,15 @@ class ChipletPartitioner
 
   // Align chiplets
   void chipletAlign(std::vector<Chiplet>& chiplet_boxes);
+
+  // calculate move gain
+  double calculateMoveGain(std::shared_ptr<ModuleConstraintGroup> module_group, Chiplet* chiplet);
+
+  // Move module group to chiplet
+  void moveModuleGroupToChiplet(std::shared_ptr<ModuleConstraintGroup> module_group, Chiplet* chiplet);
+
+  // Update groups
+  void updateGroups(std::vector<Chiplet>& chiplet_boxes, std::vector<odb::dbGroup*>& assignment);
 };;
 
 }  // namespace par
