@@ -289,10 +289,13 @@ bool Replace::initNesterovPlace(int threads)
   }
 
   for (auto gp : db_->getChip()->getBlock()->getGroups()) {
-    pbVec_.push_back(
-          std::make_shared<PlacerBase>(db_, pbc_, log_, gp));
-    for (const auto& pb : pbVec_) {
-      total_placeable_insts_ += pb->placeInsts().size();
+    if (gp->getType() == odb::dbGroupType::PHYSICAL_CLUSTER && gp->getRegion() != nullptr) {
+      log_->report("Region: {}", gp->getRegion()->getName());
+      log_->report("Group: {}, Region: {}", gp->getName());
+      pbVec_.push_back(std::make_shared<PlacerBase>(db_, pbc_, log_, gp));
+      total_placeable_insts_ += pbVec_.back()->placeInsts().size();
+    } else {
+      continue;
     }
   }
 

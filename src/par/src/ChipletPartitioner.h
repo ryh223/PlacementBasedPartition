@@ -21,6 +21,7 @@ class Chiplet
 {
  public:
   std::string name;
+  std::set<odb::dbGroup*> groups;
   std::set<odb::dbInst*> instances;
   double width;
   double height;

@@ -1036,9 +1036,11 @@ void PlacerBase::init()
     if (!inst->isInstance()) {
       continue;
     }
-
     if (inst->dbInst() && inst->dbInst()->getGroup() != group_) {
-      continue;
+      if(inst->dbInst()->getGroup() != nullptr && inst->dbInst()->getGroup()->getType() == odb::dbGroupType::PHYSICAL_CLUSTER && inst->dbInst()->getGroup()->getRegion() != nullptr)
+      {
+        continue;
+      }
     }
 
     if (inst->isFixed()) {
@@ -1113,7 +1115,7 @@ void PlacerBase::initInstsForUnusableSites()
   // if there is no group, then mark all as Row, and then for each power
   // domain, mark the sites that belong to the power domain as Empty
 
-  if (group_ != nullptr) {
+  if (group_ != nullptr && group_->getRegion() != nullptr) {
     for (auto boundary : group_->getRegion()->getBoundaries()) {
       Rect rect = boundary->getBox();
 

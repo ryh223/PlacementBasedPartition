@@ -954,8 +954,10 @@ void PartitionMgr::checkRegionInfo() {
   std::set<odb::dbInst*> insts;
   insts.insert(test_inst);
   odb::dbGroup* test_group = region_creater->createGroup("test_group", insts);
-  // odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 1040000, 1500000);
-  odb::dbRegion* test_region = region_creater->createRegion("test_region", test_group, 760000, 960000, 800000, 1000000);
+  std::set<odb::dbGroup*> groups;
+  groups.insert(test_group);
+  // odb::dbRegion* test_region = region_creater->createRegion("test_region", groups, 760000, 960000, 1040000, 1500000);
+  odb::dbRegion* test_region = region_creater->createRegion("test_region", groups, 760000, 960000, 800000, 1000000);
   std::cout << "PartitionMgr::print_region_info" << std::endl;
   auto regions = block->getRegions();
   for(auto region_ : regions)

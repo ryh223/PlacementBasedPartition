@@ -38,24 +38,28 @@ class ModuleConstraintGroup
    * @brief A class that manages a group of instances within a module and
    * provides functionality to create a child block and move instances to it.
    *
-   * This class encapsulates a set of instances (`insts`) that belong to the
+   * This class encapsulates a set of instances (`insts_`) that belong to the
    * same module and provides methods to manage these instances. It also allows
    * creating a child block, moving instances to it, and reconstructing the
    * connections within the child block.
    *
    * @details
-   * - `insts_`: A set containing the instances of the same module.
-   * - `child_block_`: A block that contains the instances.
-   * - `block_name_`: The name of the block.
    * - `wrapped_inst_`: The instance that wraps the child block.
-   * - `width_`, `height_`, `area_`: Dimensions and area of the block.
+   * - `child_block_`: A block that contains the instances.
+   * - `group_`: A group that contains the instances.
+   * - `insts_`: A set containing the instances of the same module.
+   * - `block_name_`: The name of the block.
+   * - `width_`, `height_`: Dimensions of the block.
+   * - `std_cell_area_`, `macro_area_`: Areas of standard cells and macros.
    *
    * @note The destructor deletes the `wrapped_inst_`.
    */
  private:
   odb::dbInst* wrapped_inst_{nullptr};
   odb::dbBlock* child_block_{nullptr};
+  odb::dbGroup* group_{nullptr};
   std::set<odb::dbInst*> insts_;
+  std::set<odb::dbModInst*> mod_insts_;
   std::string block_name_;
   int64_t width_{0};
   int64_t height_{0};
@@ -100,7 +104,10 @@ class ModuleConstraintGroup
   void addInst(odb::dbInst* inst)
   {
     insts_.insert(inst);
-    
+    if(group_ == nullptr){
+      group_ = odb::dbGroup::create(inst->getBlock(), block_name_.c_str());
+    }
+    group_->addInst(inst);
   }
   /**
    * @brief Remove an instance from the set.
@@ -109,13 +116,56 @@ class ModuleConstraintGroup
   void removeInst(odb::dbInst* inst)
   {
     insts_.erase(inst);
+    group_->removeInst(inst);
     DEBUG_PRINT("Removed instance: " << inst->getName());
   }
+  /**
+   * @brief Get the group of instances.
+   * @return A pointer to the group.
+   */
+  odb::dbGroup* getGroup() { return group_; }
+  /**
+   * @brief Clear all instances from the set and destroy the group.
+   */
+  void clearInsts()
+  {
+    if(group_ != nullptr){
+      odb::dbGroup::destroy(group_);
+      group_ = nullptr;
+    }
+    insts_.clear();
+  }
+  /**
+   * @brief Get the wrapped instance.
+   * @return A pointer to the wrapped instance.
+   */
   odb::dbInst* getWrappedInst() { return wrapped_inst_; }
+  /**
+   * @brief Get the width of the block.
+   * @return The width of the block.
+   */
   int64_t getWidth() { return width_; }
+  /**
+   * @brief Get the height of the block.
+   * @return The height of the block.
+   */
   int64_t getHeight() { return height_; }
-  int64_t getArea() { double util = 0.9; return int64_t(std_cell_area_ / util) + macro_area_; }
+  /**
+   * @brief Get the total area of the block.
+   * @return The total area of the block.
+   */
+  int64_t getArea() { 
+    return std_cell_area_ + macro_area_; 
+  }
+  /**
+   * @brief Get the area of standard cells in the block.
+   * @return The area of standard cells.
+   */
   int64_t getStdCellArea() { return std_cell_area_; }
+  /**
+   * @brief Get the area of macros in the block.
+   * @return The area of macros.
+   */
   int64_t getMacroArea() { return macro_area_; }
 
   /**
@@ -206,7 +256,7 @@ class ChipletRegionCreater
   odb::dbGroup* createGroup(std::string group_name,
                             std::set<odb::dbInst*>& insts);
   odb::dbRegion* createRegion(std::string region_name,
-                              odb::dbGroup* group,
+                              std::set<odb::dbGroup*>& group,
                               int64_t xMin,
                               int64_t yMin,
                               int64_t xMax,

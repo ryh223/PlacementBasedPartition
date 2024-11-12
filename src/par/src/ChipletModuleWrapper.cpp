@@ -21,9 +21,9 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
     old_new_insts_map[inst] = odb::dbInst::create(
         top_block, inst->getMaster(), inst->getName().c_str(), true);
   }
-  insts_.clear();
+  clearInsts();
   for (auto& [old_inst, new_inst] : old_new_insts_map) {
-    insts_.insert(new_inst);
+    addInst(new_inst);
   }
   // get nets connect to wrapper inst
   std::set<odb::dbNet*> cross_nets;
@@ -57,9 +57,9 @@ bool ModuleConstraintGroup::collapseBlock(odb::dbInst* block_inst)
     }
     odb::dbNet::destroy(net);
   }
-  // for (auto inst : child_block_->getInsts()) {
-  //   odb::dbInst::destroy(inst);
-  // }
+  for (auto inst : child_block_->getInsts()) {
+    odb::dbInst::destroy(inst);
+  }
   odb::dbBlock::destroy(child_block_);
   odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
   odb::dbInst::destroy(wrapped_inst_);
@@ -73,7 +73,7 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
   // expand the area of standrd cells
   // travel the insts to get the area of the block
   DEBUG_PRINT("Calculating area of the block...");
-  for (auto& inst : insts_) {
+  for (auto inst : insts_) {
     odb::dbMaster* master = inst->getMaster();
     DEBUG_PRINT("Instance: " << inst->getName()
                              << " Master: " << master->getName());
@@ -207,10 +207,10 @@ bool ModuleConstraintGroup::createBlock(odb::dbBlock* top_block)
     iterm->connect(outside_net);
   }
   // reassign the dbInst set
-  insts_.clear();
-  for (auto& [old_inst, new_inst] : old_new_insts_map) {
-    insts_.insert(new_inst);
-  }
+  clearInsts();
+  // for (auto& [old_inst, new_inst] : old_new_insts_map) {
+  //   addInst(new_inst);
+  // }
   // set the pin location for master pins and block boundary
   odb::dbMaster* wrapped_inst_master = wrapped_inst_->getMaster();
   wrapped_inst_master->setWidth(width_);
@@ -424,14 +424,14 @@ void ChipletModuleWrapper::wrapModule(
     std::shared_ptr<ModuleConstraintGroup> module_group)
 {
   _logger->report("Wrapping module group: {}", module_group->getName());
-  module_group->createBlock(_block);
+  // module_group->createBlock(_block);
 }
 
 void ChipletModuleWrapper::unwrapModule(
     std::shared_ptr<ModuleConstraintGroup> module_group)
 {
   _logger->report("Unwrapping module group: {}", module_group->getName());
-  module_group->collapseBlock(module_group->getWrappedInst());
+  // module_group->collapseBlock(module_group->getWrappedInst());
 }
 
 void ChipletModuleWrapper::runWrap(
@@ -459,10 +459,6 @@ void ChipletModuleWrapper::runUnwrap()
 {
   _logger->report("Unwrapping all module groups");
   for (auto& module_group : _module_groups) {
-    if (module_group->getInsts().size() == 1 || module_group->getInsts().empty()) {
-      _logger->report("Module group {} skip unwrapping", module_group->getName());
-      continue;
-    }
     unwrapModule(module_group);
   }
 }
@@ -525,7 +521,7 @@ odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
 }
 
 odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
-                                                  odb::dbGroup* group,
+                                                  std::set<odb::dbGroup*>& groups,
                                                   int64_t xMin,
                                                   int64_t yMin,
                                                   int64_t xMax,
@@ -538,7 +534,9 @@ odb::dbRegion* ChipletRegionCreater::createRegion(std::string region_name,
     return nullptr;
   }
   odb::dbBox::create(region, xMin, yMin, xMax, yMax);
-  region->addGroup(group);
+  for (auto group : groups) {
+    region->addGroup(group);
+  }
   _logger->report("Region {} created successfully", region_name);
   return region;
 }
