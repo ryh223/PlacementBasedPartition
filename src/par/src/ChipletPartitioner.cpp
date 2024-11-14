@@ -65,14 +65,6 @@ void ChipletPartitioner::initModuleConstraints(
 
 void ChipletPartitioner::run_partition(double temp, double freeze_temp, int step, double alpha)
 {
-  // odb::dbSet<odb::dbInst> insts = _block->getInsts();
-  // for (odb::dbInst* inst : insts) {
-  //   std::string inst_name = inst->getName();
-  //   odb::Point inst_pt = inst->getLocation();
-  //   int64_t inst_width = inst->getMaster()->getWidth();
-  //   int64_t inst_height = inst->getMaster()->getHeight();
-  //   std::cout << "Instance name: " << inst_name << ";lb_pt: " << inst_pt << ";width: " << inst_width << ";height: " << inst_height << std::endl;
-  // }
   std::vector<ChipletBlock> blocks = initChipletBlocks();
   SlicingTree* slicing_tree = new SlicingTree(_core_box.second.first - _core_box.first.first, _core_box.second.second - _core_box.first.second, blocks);
   run_simulated_annealing(temp, freeze_temp, step, alpha, slicing_tree);
@@ -149,7 +141,7 @@ void ChipletPartitioner::run_simulated_annealing(int temp, int freeze_temp, int 
   std::vector<double> area_target(best_solition.size(), 0);
   std::vector<odb::dbGroup*> assignment(best_solition.size(), nullptr);
   moduleGroupReAssignment(best_solition, area_target);
-  nullGroupReAssignment(null_group, area_target, assignment);
+  // nullGroupReAssignment(null_group, area_target, assignment);
   updateGroups(best_solition, assignment);
 }
 
@@ -196,7 +188,6 @@ void ChipletPartitioner::groupRefinement(std::vector<Chiplet>& chiplet_boxes)
         int new_x = (llx + urx) / 2;
         int new_y = (lly + ury) / 2;
         inst->setLocation(new_x, new_y);
-        _logger->report("inst {} is moved to the center of the chiplet box {}", inst->getName(), chiplet.name);
       }
     }
     else{
@@ -257,6 +248,19 @@ void ChipletPartitioner::moduleGroupReAssignment(std::vector<Chiplet>& chiplet_b
       q.push(cur);
     }
   }
+  // set area target to 0
+  double average_inst_area;
+  for (auto& chiplet : chiplet_boxes) {
+    average_inst_area += chiplet.insts_area;
+  }
+  average_inst_area /= chiplet_boxes.size();
+  area_target = std::vector<double>(chiplet_boxes.size(), average_inst_area);
+  for (size_t i = 0; i < chiplet_boxes.size(); i++) {
+    for (auto& module_group : chiplet_boxes[i].groups) {
+      area_target[i] -= average_inst_area;
+    }
+  }
+  _logger->report("average_inst_area: {}", average_inst_area);
 }
 
 double ChipletPartitioner::calculateMoveGain(std::shared_ptr<ModuleConstraintGroup> module_group, Chiplet* dest_chiplet) {
@@ -282,7 +286,7 @@ double ChipletPartitioner::calculateMoveGain(std::shared_ptr<ModuleConstraintGro
   double util_diff = util_dest - util_source;
   double new_util_diff = new_util_dest - new_util_source;
   double utilization_regulization = util_diff * util_diff - new_util_diff * new_util_diff;
-  double distance_diff = 0.05 * distance / std::sqrt(dest_chiplet_area + source_chiplet_area);
+  double distance_diff = 0.03 * distance / std::sqrt(dest_chiplet_area + source_chiplet_area);
   move_gain = utilization_regulization - distance_diff;
   std::cout << "utilization_regulization: " << utilization_regulization << " distance_diff: " << distance_diff << " move_gain: " << move_gain << std::endl;
   return move_gain;
@@ -332,7 +336,7 @@ void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::v
       for(odb::dbModInst* child_mod_inst : _module->getChildren()){
         add_module_insts_recursive(child_mod_inst, ratio, group_id);
       }
-      for(odb::dbInst* inst : _module->getLeafInsts()){
+      for(odb::dbInst* inst : _module->getInsts()){
         assignment[cur_area_and_constraint[group_id].first]->addInst(inst);
         cur_area_and_constraint[group_id].second.first += inst->getMaster()->getArea();
       }
@@ -357,7 +361,7 @@ void ChipletPartitioner::nullGroupReAssignment(odb::dbGroup* group, const std::v
           for(odb::dbModInst* mod_inst : module->getChildren()){
             add_module_insts_recursive(mod_inst, ratio, cur_group_id);
           }
-          for(odb::dbInst* inst : module->getLeafInsts()){
+          for(odb::dbInst* inst : module->getInsts()){
             assignment[cur_area_and_constraint[cur_group_id].first]->addInst(inst);
             cur_area_and_constraint[cur_group_id].second.first += inst->getMaster()->getArea();
           }
@@ -383,33 +387,33 @@ void ChipletPartitioner::chipletAlign(std::vector<Chiplet>& chiplet_boxes)
   // get site size from database
   odb::dbRow* row = *_block->getRows().begin();
   odb::dbSite* site = row->getSite();
+
   int site_size_x = site->getWidth();
   int site_size_y = site->getHeight();
+
+  int original_x = row->getOrigin().getX();
+  int original_y = row->getOrigin().getY();
+
   for (auto& chiplet : chiplet_boxes){
+    int chiplet_origin_x = chiplet.location.first;
+    int chiplet_origin_y = chiplet.location.second;
     // location, width, height are double at first
-    int llx = chiplet.location.first;
-    int lly = chiplet.location.second;
+    int llx = (chiplet_origin_x - original_x) / site_size_x * site_size_x + original_x;
+    int lly = (chiplet_origin_y - original_y) / site_size_y * site_size_y + original_y;
     // align the chiplet to the nearest site
-    int new_llx = llx / site_size_x * site_size_x;
-    int new_lly = lly / site_size_y * site_size_y;
+    llx = std::max(llx, original_x);
+    lly = std::max(lly, original_y);
+    int new_width = int(chiplet.width) / site_size_x  * site_size_x;
+    int new_height = int(chiplet.height) / site_size_y * site_size_y;
     // consider the core box boundary
-    if (new_llx < _core_box.first.first) {
-      new_llx = _core_box.first.first;
+    if (llx + new_width > _core_box.second.first) {
+      new_width = int(_core_box.second.first) - llx;
     }
-    if (new_lly < _core_box.first.second) {
-      new_lly = _core_box.first.second;
+    if (lly + new_height > _core_box.second.second) {
+      new_height = int(_core_box.second.second) - lly;
     }
-    int new_width = (int(chiplet.width) / site_size_x + 1) * site_size_x;
-    int new_height = (int(chiplet.height) / site_size_y + 1) * site_size_y;
-    // consider the core box boundary
-    if (new_llx + new_width > _core_box.second.first) {
-      new_width = int(_core_box.second.first) - new_llx;
-    }
-    if (new_lly + new_height > _core_box.second.second) {
-      new_height = int(_core_box.second.second) - new_lly;
-    }
-    chiplet.location.first = new_llx;
-    chiplet.location.second = new_lly;
+    chiplet.location.first = llx;
+    chiplet.location.second = lly;
     chiplet.width = new_width;
     chiplet.height = new_height;
   }
